@@ -17,31 +17,31 @@ A command line tool to search through a whole AWS account for environment variab
 # Usage
 <!-- usage -->
 ```sh-session
-$ npm install -g aws-env-searcher
-$ aws-env-searcher COMMAND
+$ npm install -g cloudenv
+$ cloudenv COMMAND
 running command...
-$ aws-env-searcher (-v|--version|version)
-aws-env-searcher/0.0.0 darwin-x64 node-v14.8.0
-$ aws-env-searcher --help [COMMAND]
+$ cloudenv (-v|--version|version)
+cloudenv/0.0.0 darwin-x64 node-v14.8.0
+$ cloudenv --help [COMMAND]
 USAGE
-  $ aws-env-searcher COMMAND
+  $ cloudenv COMMAND
 ...
 ```
 <!-- usagestop -->
 # Commands
 <!-- commands -->
-* [`aws-env-searcher help [COMMAND]`](#aws-env-searcher-help-command)
-* [`aws-env-searcher key KEY [ADDITIONALKEYS]`](#aws-env-searcher-key-key-additionalkeys)
-* [`aws-env-searcher ls`](#aws-env-searcher-ls)
-* [`aws-env-searcher value VALUE [ADDITIONALVALUES]`](#aws-env-searcher-value-value-additionalvalues)
+* [`cloudenv help [COMMAND]`](#cloudenv-help-command)
+* [`cloudenv key KEY [ADDITIONALKEYS]`](#cloudenv-key-key-additionalkeys)
+* [`cloudenv ls`](#cloudenv-ls)
+* [`cloudenv value VALUE [ADDITIONALVALUES]`](#cloudenv-value-value-additionalvalues)
 
-## `aws-env-searcher help [COMMAND]`
+## `cloudenv help [COMMAND]`
 
-display help for aws-env-searcher
+display help for cloudenv
 
 ```
 USAGE
-  $ aws-env-searcher help [COMMAND]
+  $ cloudenv help [COMMAND]
 
 ARGUMENTS
   COMMAND  command to show help for
@@ -52,13 +52,13 @@ OPTIONS
 
 _See code: [@oclif/plugin-help](https://github.com/oclif/plugin-help/blob/v3.2.0/src/commands/help.ts)_
 
-## `aws-env-searcher key KEY [ADDITIONALKEYS]`
+## `cloudenv key KEY [ADDITIONALKEYS]`
 
 find the environment variable value(s) given its key(s)
 
 ```
 USAGE
-  $ aws-env-searcher key KEY [ADDITIONALKEYS]
+  $ cloudenv key KEY [ADDITIONALKEYS]
 
 ARGUMENTS
   KEY             the environment variable key (glob pattern) to search for
@@ -73,15 +73,15 @@ OPTIONS
   --setPassword=setPassword  set a new password, this will create a new local cache
 ```
 
-_See code: [src/commands/key.ts](https://github.com/personal/aws-env-searcher/blob/v0.0.0/src/commands/key.ts)_
+_See code: [src/commands/key.ts](https://github.com/personal/cloudenv/blob/v0.0.0/src/commands/key.ts)_
 
-## `aws-env-searcher ls`
+## `cloudenv ls`
 
 list items from the local database cache
 
 ```
 USAGE
-  $ aws-env-searcher ls
+  $ cloudenv ls
 
 OPTIONS
   -h, --help                 show CLI help
@@ -90,18 +90,18 @@ OPTIONS
   --setPassword=setPassword  set a new password, this will create a new local cache
 
 EXAMPLE
-  $ aws-env-searcher ls
+  $ cloudenv ls
 ```
 
-_See code: [src/commands/ls.ts](https://github.com/personal/aws-env-searcher/blob/v0.0.0/src/commands/ls.ts)_
+_See code: [src/commands/ls.ts](https://github.com/personal/cloudenv/blob/v0.0.0/src/commands/ls.ts)_
 
-## `aws-env-searcher value VALUE [ADDITIONALVALUES]`
+## `cloudenv value VALUE [ADDITIONALVALUES]`
 
 find the environment variable key(s) given its value
 
 ```
 USAGE
-  $ aws-env-searcher value VALUE [ADDITIONALVALUES]
+  $ cloudenv value VALUE [ADDITIONALVALUES]
 
 ARGUMENTS
   VALUE             the environment variable value (glob pattern) to search for
@@ -116,5 +116,5 @@ OPTIONS
   --setPassword=setPassword  set a new password, this will create a new local cache
 ```
 
-_See code: [src/commands/value.ts](https://github.com/personal/aws-env-searcher/blob/v0.0.0/src/commands/value.ts)_
+_See code: [src/commands/value.ts](https://github.com/personal/cloudenv/blob/v0.0.0/src/commands/value.ts)_
 <!-- commandsstop -->
