@@ -1,0 +1,23 @@
+image: hfcoramil/pipeline-builder
+definitions:
+  services:
+    docker:
+      memory: 2048
+pipelines:
+  custom:
+    build_and_upload_to_s3:
+      - step:
+          caches:
+            - node
+            - docker
+          services:
+            - docker
+          name: Build and Upload
+          script:
+            - npm install
+            - npm run prepack
+            # because for some unknown reason, npm run pack:deb fails if run directly
+            - docker run --rm -w="/opt/app" -v ${BITBUCKET_CLONE_DIR}:/opt/app hfcoramil/pipeline-builder npm run pack:deb
+            - docker run --rm -w="/opt/app" -v ${BITBUCKET_CLONE_DIR}:/opt/app hfcoramil/pipeline-builder npm run pack
+            - aws s3 cp  --recursive --exclude '*' --include '*amd64.deb' ./dist/deb/ s3://coramil-artifacts/
+            - aws s3 cp  --recursive --exclude '*' --include '*linux-x64.tar.gz' $(find ./dist -maxdepth 3 -type d -name grpcwebcurl* -print0) s3://coramil-artifacts/

@@ -1,0 +1,75 @@
+{
+  "name": "cloudenv",
+  "description": "A command line tool to search through a whole AWS account for environment variables keys and values.",
+  "version": "0.0.0",
+  "author": "M. Hakim Adiprasetya",
+  "bin": {
+    "cloudenv": "./bin/run"
+  },
+  "bugs": "https://github.com/personal/cloudenv/issues",
+  "dependencies": {
+    "@adorsys/encrypt-down": "^2.1.0",
+    "@oclif/command": "^1.8.0",
+    "@oclif/config": "^1.17.0",
+    "@oclif/plugin-help": "^3.2.0",
+    "@types/leveldown": "^4.0.2",
+    "@types/levelup": "^4.3.0",
+    "aws-sdk": "^2.744.0",
+    "cli-ux": "^5.5.0",
+    "leveldown": "^5.6.0",
+    "levelup": "^4.4.0",
+    "limiter": "^1.1.5",
+    "minimatch": "^3.0.4",
+    "moment": "^2.27.0",
+    "tsconfig-paths": "^3.9.0",
+    "tslib": "^1.13.0",
+    "winston": "^3.3.3"
+  },
+  "devDependencies": {
+    "@oclif/dev-cli": "^1.22.2",
+    "@types/jest": "^26.0.12",
+    "@types/node": "^10.17.30",
+    "eslint": "^5.16.0",
+    "eslint-config-oclif": "^3.1.0",
+    "eslint-config-oclif-typescript": "^0.1.0",
+    "globby": "^10.0.2",
+    "jest": "^26.4.2",
+    "nodemon": "^2.0.4",
+    "ts-node": "^8.10.2",
+    "typescript": "^3.9.7"
+  },
+  "engines": {
+    "node": ">=8.0.0"
+  },
+  "files": [
+    "/bin",
+    "/lib",
+    "/npm-shrinkwrap.json",
+    "/oclif.manifest.json"
+  ],
+  "homepage": "https://github.com/personal/cloudenv",
+  "keywords": [
+    "oclif"
+  ],
+  "license": "MIT",
+  "main": "lib/index.js",
+  "oclif": {
+    "commands": "./lib/commands",
+    "bin": "cloudenv",
+    "plugins": [
+      "@oclif/plugin-help"
+    ]
+  },
+  "repository": "personal/cloudenv",
+  "scripts": {
+    "pack": "oclif-dev pack",
+    "pack:macos": "oclif-dev pack:macos",
+    "pack:deb": "oclif-dev pack:deb",
+    "postpack": "rm -f oclif.manifest.json",
+    "posttest": "eslint . --ext .ts --config .eslintrc",
+    "prepack": "rm -rf lib && tsc -b && oclif-dev manifest && oclif-dev readme",
+    "test": "echo NO TESTS",
+    "version": "oclif-dev readme && git add README.md"
+  },
+  "types": "lib/index.d.ts"
+}

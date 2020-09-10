@@ -1,0 +1,9 @@
+{
+  "extends": ["oclif", "oclif-typescript"],
+  "rules": {
+    "semi": "off",
+    "arrow-parens": "off",
+    "object-curly-spacing": "off",
+    "indent": ["error", 2, { "MemberExpression": 1 }]
+  }
+}
