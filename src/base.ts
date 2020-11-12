@@ -2,20 +2,36 @@
 import Command, { flags } from '@oclif/command';
 import { LocalDb } from './core';
 import { LogManager } from './util';
+import { OpsConfig } from 'ops-config';
+import { PathPriorityBuilderSync } from 'path-priority';
+import 'path-priority/lib/cjs/finders';
+import envPaths from 'env-paths';
+import root from 'app-root-path';
+import path from 'path';
+import fs from 'fs';
+import { schema } from './schema';
+import cli from 'cli-ux';
 
 const log = LogManager.Instance;
 
 export default abstract class BaseCommand extends Command {
-  private Db: LocalDb | undefined;
+  protected Db: LocalDb | undefined;
 
   static strict = false;
 
   static flags = {
+    ...cli.table.flags(),
+    dotenvFile: flags.string({
+      description: 'a dotenv file to load environment variables from.',
+    }),
+    configFile: flags.string({
+      description: 'a config file to load configurations from.',
+      default: 'config.yaml',
+    }),
     password: flags.string({
       char: 'p',
       description: 'password to decrypt local cache',
       required: false,
-      env: 'SEARCHER_PASSWORD',
     }),
     setPassword: flags.string({
       description: 'set a new password, this will create a new local cache',
@@ -26,8 +42,16 @@ export default abstract class BaseCommand extends Command {
       char: 'l',
       description: 'set the log level',
       required: false,
-      default: 'info',
       options: ['info', 'debug'],
+    }),
+    cacheName: flags.string({
+      char: 'c',
+      description: 'the name of the cache',
+      required: false,
+    }),
+    awsProfile: flags.string({
+      description: 'use credentials from the aws profile',
+      required: false,
     }),
   };
 
@@ -44,30 +68,97 @@ export default abstract class BaseCommand extends Command {
   async init() {
     // do some initialization
     const { flags } = this.parse(BaseCommand);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { setPassword, ...restFlags } = flags;
+    OpsConfig.init(schema, restFlags as any);
+
+    if (flags?.dotenvFile) {
+      OpsConfig.usePriorityPreset('cli').loadFromPathPriority(
+        `ops-config/${flags?.configFile}`,
+        `ops-config/${flags?.dotenvFile}`
+      );
+    } else {
+      const configFile = `ops-config/${flags?.configFile}`;
+      OpsConfig.usePriorityPreset('cli').loadFromPathPriority(configFile);
+    }
 
     // setup logging
-    if (flags.logLevel) {
-      LogManager.Instance.setLogger(flags.logLevel);
-      LogManager.Instance.setAwsLogger(flags.logLevel);
+    const logLevel = OpsConfig.get('logLevel');
+    if (logLevel) {
+      LogManager.Instance.setLogger(logLevel);
+      LogManager.Instance.setAwsLogger(logLevel);
     }
 
     // initialize database
-    this.Db = new LocalDb();
-    this.Db.openDatabase(this.config.dataDir);
+    const cacheName = OpsConfig.get('cacheName');
+    let cacheFullPath;
+    let newDatabaseFlag = false;
 
-    if (!flags.password && !flags.setPassword) {
+    const cacheLocation = new PathPriorityBuilderSync()
+      .findPaths(`ops-config/${cacheName}`)
+      .ifEnv({ NODE_ENV: '?(development)?(debug)' })
+      .appRoot()
+      .defaultData()
+      .generateSync();
+
+    if (cacheLocation.length > 0) {
+      cacheFullPath = cacheLocation[0];
+    } else {
+      // no database found, should create
+      let dataPath;
+      if (
+        process.env.NODE_ENV === 'development' ||
+        process.env.NODE_ENV === 'debug'
+      ) {
+        dataPath = path.resolve(root.path, `ops-config/${cacheName}`);
+      } else {
+        dataPath = path.join(envPaths('ops-config').data, cacheName);
+      }
+      cacheFullPath = dataPath;
+      newDatabaseFlag = true;
+    }
+
+    let newPassword: string | undefined;
+    // if new database and no setPassword is given
+    if (newDatabaseFlag && !flags.setPassword) {
+      const firstPassword = (await cli.prompt(
+        "A new cache database was created and --setPassword wasn't set,\nplease enter a password for the new cache database",
+        { type: 'hide' }
+      )) as string;
+
+      const secondPassword = await cli.prompt('Please re-enter your password', {
+        type: 'hide',
+      });
+
+      if (firstPassword !== secondPassword) {
+        log.error(
+          'Password fields did not match, creation of database aborted'
+        );
+        this.exit(1);
+      }
+      newPassword = firstPassword;
+      fs.mkdirSync(cacheFullPath, { recursive: true });
+    }
+
+    this.Db = new LocalDb();
+    this.Db.openDatabase(cacheFullPath);
+
+    if (newPassword) {
+      await this.Db.setDatabasePassword(newPassword);
+    } else if (!OpsConfig.get('password') && !flags.setPassword) {
       this.error('need a password', {
         exit: 1,
         suggestions: [
-          'please provide a password either with the --password or --setPassword flag (or SEARCH_PASSWORD environment variable)',
+          'please provide a password in the config.yaml file or with the --password or --setPassword flag (or CLOUDENV_PASSWORD environment variable)',
         ],
       });
     }
 
-    const password = flags?.setPassword || flags?.password;
+    const password =
+      flags?.setPassword || newPassword || OpsConfig.get('password');
 
     if (flags.setPassword !== undefined) {
-      this.Db.deleteDatabase(this.config.dataDir);
+      this.Db.deleteDatabase(cacheFullPath);
       await this.Db.setDatabasePassword(flags.setPassword);
     }
 

@@ -1,10 +1,11 @@
+import Command from '../base';
 import { flags } from '@oclif/command';
 import { CredentialManager } from '../core';
-import { LogManager } from '../util';
-import { ParameterService } from '../core';
-import Command from '../base';
-
-const log = LogManager.Instance;
+import { log } from '../util';
+import { FinderService } from '../core';
+import { OpsConfig } from 'ops-config';
+import cli from 'cli-ux';
+import { AWSParameterStore, AWSRoute53 } from '../aws-services';
 
 export default class Value extends Command {
   static description = 'find the environment variable key(s) given its value';
@@ -57,8 +58,26 @@ export default class Value extends Command {
     }
 
     const cm = new CredentialManager();
-    await cm.login();
-    const parameterService = new ParameterService(this.getDb());
-    await parameterService.runSearch(allValues, flags.remote);
+    // await cm.getDefaultCredentials();
+    const awsProfile = OpsConfig.get('aws.profile');
+    const awsAccessKeyId = OpsConfig.get('aws.accessKeyId');
+    const awsSecretAccessKey = OpsConfig.get('aws.secretAccessKey');
+    let awsRegion = OpsConfig.get('aws.region');
+
+    if (!awsRegion) {
+      awsRegion = await cli.prompt(
+        'aws region not detected in configuration / environment variables\nplease enter the aws region'
+      );
+    }
+
+    if (awsProfile) {
+      await cm.loginWithCredentialFile(awsProfile, awsRegion);
+    } else {
+      await cm.login(awsAccessKeyId, awsSecretAccessKey, awsRegion);
+    }
+    const finderService = new FinderService(this.getDb());
+    finderService.addEnvVarSource(new AWSParameterStore());
+    finderService.addEnvVarSource(new AWSRoute53());
+    await finderService.runSearch(allValues, flags.remote);
   }
 }

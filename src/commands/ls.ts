@@ -17,7 +17,7 @@ export default class Ls extends Command {
 
   async run() {
     log.info('Fetching from encrypted cache...');
-    const parameters = await this.getDb().getAllDatabaseItems();
+    const parameters = await this.getDb().getAllDatabaseKeys();
     outputLog.info(parameters);
   }
 }

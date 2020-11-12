@@ -2,66 +2,63 @@ import LevelUp from 'levelup';
 import LevelDOWN from 'leveldown';
 import crypto from 'crypto';
 import { LogManager } from '../util';
-import { Parameter, ParameterDict, ParameterDatabaseSyncEnum } from '.';
+import { EnvVar, EnvVarDict } from './envvar-interface';
 import path from 'path';
 import fs from 'fs';
 import minimatch from 'minimatch';
 import { cli } from 'cli-ux';
+import os from 'os';
 
 const log = LogManager.Instance;
 
 // key format source|key|datetime
-function dbKeyToParameterValue(
-  key: string,
-  syncStatus: ParameterDatabaseSyncEnum = 0
-): Parameter {
+function dbKeyToFinderValue(key: string): EnvVar {
   const keyArray = key.split('|');
-  const parameter: Parameter = {
-    source: keyArray[0],
-    key: keyArray[1],
-    modifiedDate: keyArray[2],
-    syncStatus,
+  const parameter: EnvVar = {
+    cloud: keyArray[0],
+    source: keyArray[1],
+    key: keyArray[2],
+    modifiedDate: keyArray[3],
   };
   return parameter;
 }
 
-function dbKeyToParameterKey(key: string): string {
+function dbKeyToFinderKey(key: string): string {
   const keyArray = key.split('|');
-  return keyArray[1];
+  return keyArray[2];
 }
 
-function parameterValueToDbKey(parameter: Parameter): string {
-  return `${parameter.source}|${parameter.key}|${parameter.modifiedDate}`;
+function parameterValueToDbKey(parameter: EnvVar): string {
+  return `${parameter.cloud}|${parameter.source}|${parameter.key}|${parameter.modifiedDate}`;
 }
 
-function parameterValueToDbValue(parameter: Parameter): string {
+function parameterValueToDbValue(parameter: EnvVar): string {
   if (parameter?.value) {
     return parameter?.value;
   }
   return '';
 }
 
-interface Key {
-  cipherKey: Buffer;
-  hashingSalt: Buffer;
-}
-
 function stretchString(s: string, outputLength: number) {
-  const salt = 'abcdefghijklmnop'; // crypto.randomBytes(16);
+  const salt = `${os.userInfo().username}:${os.hostname()}`;
   const keyBuf = crypto.pbkdf2Sync(s, salt, 100000, outputLength, 'sha512');
   return keyBuf;
 }
 
-function encrypt(iv: Buffer, key: Buffer, sourceData: Buffer) {
+function encrypt(key: Buffer, sourceData: Buffer) {
+  const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
   let encrypted = cipher.update(sourceData);
   encrypted = Buffer.concat([encrypted, cipher.final()]);
-  return encrypted;
+  const appendedBuffer = Buffer.concat([iv, encrypted]);
+  return appendedBuffer;
 }
 
-function decrypt(iv: Buffer, key: Buffer, encryptedData: Buffer) {
+function decrypt(key: Buffer, encryptedData: Buffer) {
+  const iv = encryptedData.subarray(0, 16);
+  const data = encryptedData.subarray(16);
   const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-  let decrypted = decipher.update(encryptedData);
+  let decrypted = decipher.update(data);
   decrypted = Buffer.concat([decrypted, decipher.final()]);
   return decrypted;
 }
@@ -73,16 +70,16 @@ export class LocalDb {
 
   private async saveMetaDataToDatabase(password: string, metaData: string) {
     const key = stretchString(password, 32);
-    const iv = stretchString('metadata', 16);
-    const encryptedMessage = encrypt(iv, key, Buffer.from(metaData));
+    // const iv = stretchString('metadata', 16);
+    const encryptedMessage = encrypt(key, Buffer.from(metaData));
     await this.db.put('metadata', encryptedMessage);
   }
 
   private async getMetaDataFromDatabase(password: string): Promise<string> {
     const key = stretchString(password, 32);
-    const iv = stretchString('metadata', 16);
+    // const iv = stretchString('metadata', 16);
     const encryptedMessage = (await this.db.get('metadata')) as Buffer;
-    const clearText = decrypt(iv, key, encryptedMessage);
+    const clearText = decrypt(key, encryptedMessage);
     return clearText.toString();
   }
 
@@ -120,16 +117,11 @@ export class LocalDb {
   }
 
   public openDatabase(filePath: string) {
-    if (process.env.NODE_ENV === 'development') {
-      this.db = new LevelUp(new LevelDOWN('./localdb'));
-    } else {
-      fs.mkdirSync(filePath, { recursive: true });
-      this.db = new LevelUp(new LevelDOWN(path.join(filePath, 'localdb')));
-    }
+    this.db = new LevelUp(new LevelDOWN(filePath));
   }
 
-  public async getAllDatabaseItems(): Promise<ParameterDict> {
-    const parameterDict: ParameterDict = {};
+  public async getAllDatabaseKeys(): Promise<EnvVarDict> {
+    const parameterDict: EnvVarDict = {};
 
     await new Promise((resolve, reject) => {
       this.db
@@ -137,9 +129,39 @@ export class LocalDb {
         .on('data', function (key: any) {
           const keyString: string = key.toString() as string;
           if (keyString !== 'metadata') {
-            parameterDict[
-              dbKeyToParameterKey(keyString)
-            ] = dbKeyToParameterValue(keyString);
+            parameterDict[dbKeyToFinderKey(keyString)] = dbKeyToFinderValue(
+              keyString
+            );
+          }
+        })
+        .on('error', function (err: any) {
+          log.error(err);
+          reject(err);
+        })
+        .on('close', function () {
+          resolve();
+        });
+    });
+
+    return parameterDict;
+  }
+
+  public async getDatabaseKeysForSource(
+    cloud: string,
+    source: string
+  ): Promise<EnvVarDict> {
+    const parameterDict: EnvVarDict = {};
+
+    await new Promise((resolve, reject) => {
+      this.db
+        .createKeyStream()
+        .on('data', function (key: any) {
+          const keyString: string = key.toString() as string;
+          if (keyString === 'metadata') return;
+
+          const envVar = dbKeyToFinderValue(keyString);
+          if (envVar.cloud === cloud && envVar.source === source) {
+            parameterDict[dbKeyToFinderKey(keyString)] = envVar;
           }
         })
         .on('error', function (err: any) {
@@ -155,31 +177,21 @@ export class LocalDb {
   }
 
   public async findKeyInDatabaseForValue(
-    valuesToFind: Array<string>,
-    numberOfItems: number
-  ): Promise<ParameterDict> {
-    const parameters: ParameterDict = {};
+    valuesToFind: Array<string>
+  ): Promise<EnvVarDict> {
+    const parameters: EnvVarDict = {};
     const password = this.password as string;
     const cryptKey = stretchString(password, 32);
-    const cryptIv = stretchString('ivsalt', 16);
-    let count = 0;
-    const customBar = cli.progress({
-      format: 'PROGRESS | {bar} | {value}/{total} Files',
-      barCompleteChar: '\u2588',
-      barIncompleteChar: '\u2591',
-    });
-    customBar.start(numberOfItems, 0);
+    // const cryptIv = stretchString('ivsalt', 16);
     await new Promise((resolve, reject) => {
       this.db
         .createReadStream()
         .on('data', function (data: any) {
-          ++count;
-          customBar.update(count);
           const keyString: string = data.key.toString() as string;
           const valueString: Buffer = data.value;
 
           if (keyString !== 'metadata') {
-            const decryptedValue = decrypt(cryptIv, cryptKey, valueString);
+            const decryptedValue = decrypt(cryptKey, valueString);
 
             const decryptedString = decryptedValue.toString();
             const found = valuesToFind.some((value) => {
@@ -187,9 +199,9 @@ export class LocalDb {
             });
 
             if (found) {
-              const parameter = dbKeyToParameterValue(keyString);
+              const parameter = dbKeyToFinderValue(keyString);
               parameter.value = decryptedValue.toString();
-              parameters[dbKeyToParameterKey(keyString)] = parameter;
+              parameters[dbKeyToFinderKey(keyString)] = parameter;
             }
           }
         })
@@ -198,7 +210,6 @@ export class LocalDb {
           reject(err);
         })
         .on('close', function () {
-          customBar.stop();
           resolve();
         });
     });
@@ -206,26 +217,16 @@ export class LocalDb {
   }
 
   public async findValueInDatabaseForKey(
-    keysToFind: Array<string>,
-    numberOfItems: number
-  ): Promise<ParameterDict> {
-    const parameters: ParameterDict = {};
+    keysToFind: Array<string>
+  ): Promise<EnvVarDict> {
+    const parameters: EnvVarDict = {};
     const password = this.password as string;
     const cryptKey = stretchString(password, 32);
-    const cryptIv = stretchString('ivsalt', 16);
-    let count = 0;
-    const customBar = cli.progress({
-      format: 'PROGRESS | {bar} | {value}/{total} Files',
-      barCompleteChar: '\u2588',
-      barIncompleteChar: '\u2591',
-    });
-    customBar.start(numberOfItems, 0);
+    // const cryptIv = stretchString('ivsalt', 16);
     await new Promise((resolve, reject) => {
       this.db
         .createReadStream()
         .on('data', function (data: any) {
-          ++count;
-          customBar.update(count);
           const keyString: string = data.key.toString() as string;
           const valueString: Buffer = data.value;
           if (keyString !== 'metadata') {
@@ -234,11 +235,11 @@ export class LocalDb {
             });
 
             if (found) {
-              const decryptedValue = decrypt(cryptIv, cryptKey, valueString);
+              const decryptedValue = decrypt(cryptKey, valueString);
               const decryptedString = decryptedValue.toString();
-              const parameter = dbKeyToParameterValue(keyString);
+              const parameter = dbKeyToFinderValue(keyString);
               parameter.value = decryptedString;
-              parameters[dbKeyToParameterKey(keyString)] = parameter;
+              parameters[dbKeyToFinderKey(keyString)] = parameter;
             }
           }
         })
@@ -247,31 +248,22 @@ export class LocalDb {
           reject(err);
         })
         .on('close', function () {
-          customBar.stop();
           resolve();
         });
     });
     return parameters;
   }
 
-  public async saveToDatabase(
-    parameters: ParameterDict,
-    source: string
-  ): Promise<boolean> {
+  public async saveToDatabase(parameters: EnvVarDict): Promise<boolean> {
     const dbOps: Array<{ type: string; key: string; value?: Buffer }> = [];
     const cryptKey = stretchString(this.password as string, 32);
-    const cryptIv = stretchString('ivsalt', 16);
+    // const cryptIv = stretchString('ivsalt', 16);
     Object.values(parameters).forEach((value, index, array) => {
       log.info(`processing ${index} of ${array.length}`);
-      value.source = source;
-      const key = parameterValueToDbKey(value as Parameter);
-      const parameterValue = parameterValueToDbValue(value as Parameter);
+      const key = parameterValueToDbKey(value as EnvVar);
+      const parameterValue = parameterValueToDbValue(value as EnvVar);
 
-      const encryptedValue = encrypt(
-        cryptIv,
-        cryptKey,
-        Buffer.from(parameterValue)
-      );
+      const encryptedValue = encrypt(cryptKey, Buffer.from(parameterValue));
       dbOps.push({ type: 'put', key, value: encryptedValue });
     });
 
@@ -295,23 +287,5 @@ export class LocalDb {
     }
 
     return true;
-  }
-
-  // public async addToDB() {}
-
-  public async test() {
-    // 2) Put a key & value
-    try {
-      await this.db.put('ssm|ALOHA_WINNER|2020-02-10T04:09:22.140Z', 'levelup');
-
-      const value = await this.db.get(
-        'ssm|ALOHA_WINNER|2020-02-10T04:09:22.140Z'
-      );
-
-      // Ta da!
-      log.info('value=' + value);
-    } catch (error) {
-      if (error) return log.error(error); // likely the key was not found
-    }
   }
 }
