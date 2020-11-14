@@ -4,6 +4,8 @@ import { LocalDb } from '.';
 import cli, { Table } from 'cli-ux';
 import { OpsConfig } from 'ops-config';
 import { EnvVarSource } from './envvar-interface';
+import moment from 'moment';
+import inquirer from 'inquirer';
 
 function printOutput(finderDict: EnvVarDict) {
   const columns = {
@@ -47,45 +49,78 @@ export class FinderService {
   private cloudService: ServiceCaller[] = [];
 
   // eslint-disable-next-line no-useless-constructor
-  constructor(private localDBService: LocalDb) {
+  constructor(private dB: LocalDb) {
     // this.parameters = {};
+  }
+
+  private async shouldRunRemoteWithUpdatedData(): Promise<boolean> {
+    const metaData = await this.dB.getMetaDataFromDatabase();
+    let runRemote = true;
+    const momentDuration = OpsConfig.get('freshRemoteReminder');
+    if (moment(metaData?.lastUpdated).add(momentDuration).isAfter(moment())) {
+      const questions = [
+        {
+          type: 'confirm',
+          name: 'input',
+          message: `The cache was updated only ${moment(
+            metaData?.lastUpdated
+          ).fromNow()}, do you still want to fetch new remote state?`,
+          default: true,
+        },
+      ];
+
+      const { input } = await inquirer.prompt(questions);
+      runRemote = input;
+      if (runRemote) {
+        log.noFormatting(
+          'You can add the configuration "freshRemoteReminder:  duration (i.e. 10 minutes)"\nto change how long before we remind you the data is still fresh'
+        );
+        await cli.wait(500);
+      } else {
+        log.noFormatting(
+          'Next time, you can use the option --no-remote to skip fetching remote state'
+        );
+        await cli.wait();
+      }
+    }
+
+    return runRemote;
   }
 
   public addEnvVarSource(envVarSource: EnvVarSource) {
     this.cloudService.push(
-      new ServiceCaller(this.promiseQueue, this.localDBService, envVarSource)
+      new ServiceCaller(this.promiseQueue, this.dB, envVarSource)
     );
   }
 
   public async runSearch(values: Array<string>, runRemote: boolean) {
     if (runRemote) {
-      cli.action.start('updating cache with remote data');
-      await Promise.all(
-        this.cloudService.map((value) => value.fetchAndUpdateDb())
-      );
-      cli.action.stop();
+      if (await this.shouldRunRemoteWithUpdatedData()) {
+        cli.action.start('updating cache with remote data');
+        await Promise.all(
+          this.cloudService.map((value) => value.fetchAndUpdateDb())
+        );
+        cli.action.stop();
+      }
     }
     // now that database is updated, iterate through database to find value
-    const foundItems = await this.localDBService.findKeyInDatabaseForValue(
-      values
-    );
+    const foundItems = await this.dB.findKeyInDatabaseForValue(values);
     log.noFormatting('\n');
     printOutput(foundItems);
   }
 
   public async runKeySearch(keys: string[], runRemote: boolean) {
     if (runRemote) {
-      cli.action.start('updating cache with remote data');
-      await Promise.all(
-        this.cloudService.map((value) => () => value.fetchAndUpdateDb())
-      );
-      cli.action.stop();
+      if (await this.shouldRunRemoteWithUpdatedData()) {
+        cli.action.start('updating cache with remote data');
+        await Promise.all(
+          this.cloudService.map((value) => value.fetchAndUpdateDb())
+        );
+        cli.action.stop();
+      }
     }
-
     // now that database is updated, iterate through database to find value
-    const foundItems = await this.localDBService.findValueInDatabaseForKey(
-      keys
-    );
+    const foundItems = await this.dB.findValueInDatabaseForKey(keys);
     log.prettyPrint('\n');
     printOutput(foundItems);
   }

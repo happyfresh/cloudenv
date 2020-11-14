@@ -6,6 +6,7 @@ import { FinderService } from '../core';
 import { OpsConfig } from 'ops-config';
 import cli from 'cli-ux';
 import { AWSParameterStore, AWSRoute53 } from '../aws-services';
+import inquirer from 'inquirer';
 
 export default class Key extends Command {
   static description =
@@ -21,7 +22,6 @@ export default class Key extends Command {
     remote: flags.boolean({
       char: 'r',
       description: 'check remote state and download new values',
-      default: true,
       allowNo: true,
     }),
   };
@@ -64,9 +64,18 @@ export default class Key extends Command {
     let awsRegion = OpsConfig.get('aws.region');
 
     if (!awsRegion) {
-      awsRegion = await cli.prompt(
-        'aws region not detected in configuration / environment variables\nplease enter the aws region'
-      );
+      const questions = [
+        {
+          type: 'input',
+          name: 'region',
+          message:
+            'aws region not detected in configuration / environment variables\nplease enter the aws region',
+          default: false,
+        },
+      ];
+
+      const { region } = await inquirer.prompt(questions);
+      awsRegion = region;
     }
 
     if (awsProfile) {
@@ -77,6 +86,6 @@ export default class Key extends Command {
     const finderService = new FinderService(this.getDb());
     finderService.addEnvVarSource(new AWSParameterStore());
     finderService.addEnvVarSource(new AWSRoute53());
-    await finderService.runKeySearch(allKeys, flags.remote);
+    await finderService.runKeySearch(allKeys, OpsConfig.get('remote'));
   }
 }

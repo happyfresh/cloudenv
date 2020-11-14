@@ -6,6 +6,8 @@ import { FinderService } from '../core';
 import { OpsConfig } from 'ops-config';
 import cli from 'cli-ux';
 import { AWSParameterStore, AWSRoute53 } from '../aws-services';
+import inquirer from 'inquirer';
+import { schema } from '../schema';
 
 export default class Value extends Command {
   static description = 'find the environment variable key(s) given its value';
@@ -20,7 +22,6 @@ export default class Value extends Command {
     remote: flags.boolean({
       char: 'r',
       description: 'check remote state and download new values',
-      default: true,
       allowNo: true,
     }),
   };
@@ -50,6 +51,19 @@ export default class Value extends Command {
       flags,
     } = this.parse(Value);
 
+    OpsConfig.clearArgs().clearEnvs();
+    OpsConfig.init(schema, flags as any);
+
+    if (flags?.dotenvFile) {
+      OpsConfig.usePriorityPreset('cli').loadFromPathPriority(
+        `ops-config/${flags?.configFile}`,
+        `ops-config/${flags?.dotenvFile}`
+      );
+    } else {
+      const configFile = `ops-config/${flags?.configFile}`;
+      OpsConfig.usePriorityPreset('cli').loadFromPathPriority(configFile);
+    }
+
     let allValues: Array<string>;
     if (additionalValues) {
       allValues = [value].concat(additionalValues);
@@ -65,9 +79,18 @@ export default class Value extends Command {
     let awsRegion = OpsConfig.get('aws.region');
 
     if (!awsRegion) {
-      awsRegion = await cli.prompt(
-        'aws region not detected in configuration / environment variables\nplease enter the aws region'
-      );
+      const questions = [
+        {
+          type: 'input',
+          name: 'region',
+          message:
+            'aws region not detected in configuration / environment variables\nplease enter the aws region',
+          default: false,
+        },
+      ];
+
+      const { region } = await inquirer.prompt(questions);
+      awsRegion = region;
     }
 
     if (awsProfile) {
@@ -78,6 +101,6 @@ export default class Value extends Command {
     const finderService = new FinderService(this.getDb());
     finderService.addEnvVarSource(new AWSParameterStore());
     finderService.addEnvVarSource(new AWSRoute53());
-    await finderService.runSearch(allValues, flags.remote);
+    await finderService.runSearch(allValues, OpsConfig.get('remote'));
   }
 }

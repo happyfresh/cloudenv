@@ -10,6 +10,7 @@ import path from 'path';
 import fs from 'fs';
 import { schema } from './schema';
 import cli from 'cli-ux';
+import inquirer from 'inquirer';
 
 export default abstract class BaseCommand extends Command {
   protected Db: LocalDb | undefined;
@@ -125,19 +126,39 @@ export default abstract class BaseCommand extends Command {
     let newPassword: string | undefined;
     // if new database and no setPassword is given
     if (newDatabaseFlag && !flags.setPassword) {
-      const firstPassword = (await cli.prompt(
-        "A new cache database was created and --setPassword wasn't set,\nplease enter a password for the new cache database",
-        { type: 'hide' }
-      )) as string;
+      const validator = (value: string) => {
+        const pass = value.length >= 4;
+        if (pass) {
+          return true;
+        }
 
-      const secondPassword = await cli.prompt('Please re-enter your password', {
-        type: 'hide',
-      });
+        return 'Please enter a password longer than four characters';
+      };
+
+      const questions = [
+        {
+          type: 'password',
+          name: 'firstPassword',
+          mask: '*',
+          message:
+            "A new cache database was created and --setPassword wasn't set,\nplease enter a password for the new cache database",
+          validate: validator,
+        },
+        {
+          type: 'password',
+          name: 'secondPassword',
+          mask: '*',
+          message: 'Please re-enter your password',
+          validate: validator,
+        },
+      ];
+
+      const { firstPassword, secondPassword } = await inquirer.prompt(
+        questions
+      );
 
       if (firstPassword !== secondPassword) {
-        log.error(
-          'Password fields did not match, creation of database aborted'
-        );
+        log.error('Password fields did not match, creation of cache aborted');
         this.exit(1);
       }
       newPassword = firstPassword;
@@ -146,6 +167,35 @@ export default abstract class BaseCommand extends Command {
 
     this.Db = new LocalDb();
     this.Db.openDatabase(cacheFullPath);
+
+    if (flags.setPassword !== undefined) {
+      try {
+        if (fs.existsSync(cacheFullPath)) {
+          const questions = [
+            {
+              type: 'confirm',
+              name: 'input',
+              message: `a cache file at ${cacheFullPath} already exists,\nsetting a new password will delete the old cache, continue?`,
+              default: false,
+            },
+          ];
+
+          const { input } = await inquirer.prompt(questions);
+
+          if (input) {
+            this.Db.close();
+            fs.rmdirSync(cacheFullPath, { recursive: true });
+          } else {
+            log.warn('creation of new cache file aborted');
+            this.exit(1);
+          }
+        }
+      } catch (error) {
+        log.error(error);
+      }
+      this.Db.openDatabase(cacheFullPath);
+      await this.Db.setNewDatabasePassword(flags.setPassword);
+    }
 
     if (newPassword) {
       await this.Db.setNewDatabasePassword(newPassword);
@@ -156,27 +206,6 @@ export default abstract class BaseCommand extends Command {
           'please provide a password in the config.yaml file or with the --password or --setPassword flag (or CLOUDENV_PASSWORD environment variable)',
         ],
       });
-    }
-
-    if (flags.setPassword !== undefined) {
-      try {
-        if (fs.existsSync(cacheFullPath)) {
-          const input = await cli.prompt(
-            `a cache file at ${cacheFullPath} already exists,\nsetting a new password will delete the old cache\ncontinue? (Yes/y or No/n)`
-          );
-          if (['yes', 'Yes', 'y', 'Y'].some((value) => value === input)) {
-            fs.unlinkSync(cacheFullPath);
-          } else {
-            log.warn('creation of new cache file aborted');
-            this.exit(1);
-          }
-        }
-      } catch (error) {
-        log.error(error);
-      }
-
-      this.Db.openDatabase(cacheFullPath);
-      await this.Db.setNewDatabasePassword(flags.setPassword);
     }
 
     const password =
@@ -199,5 +228,10 @@ export default abstract class BaseCommand extends Command {
     // add any custom logic to handle errors from the command
     // or simply return the parent class error handling
     return super.catch(error);
+  }
+
+  async finally(error: any) {
+    this.Db?.close();
+    return super.finally(error);
   }
 }

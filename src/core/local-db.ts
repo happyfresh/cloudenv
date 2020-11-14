@@ -103,6 +103,10 @@ export class LocalDb {
     BSON.Timestamp,
   ]);
 
+  public close() {
+    this.db.close();
+  }
+
   private encryptJson(object: { [key: string]: any }): Buffer {
     const encryptedMessage = encrypt(
       this.key as Buffer,
@@ -117,11 +121,11 @@ export class LocalDb {
     return decryptedMessage;
   }
 
-  private async saveMetaDataToDatabase(metaData: MetaData) {
+  public async saveMetaDataToDatabase(metaData: MetaData) {
     await this.db.put('metadata', this.encryptJson(metaData));
   }
 
-  private async getMetaDataFromDatabase(): Promise<MetaData> {
+  public async getMetaDataFromDatabase(): Promise<MetaData> {
     const encryptedMessage = (await this.db.get('metadata')) as Buffer;
     return this.decryptJson(encryptedMessage) as MetaData;
   }
