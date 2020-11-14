@@ -1,18 +1,36 @@
 import LevelUp from 'levelup';
 import LevelDOWN from 'leveldown';
 import crypto from 'crypto';
-import { LogManager } from '../util';
+import { log } from '../util';
 import { EnvVar, EnvVarDict } from './envvar-interface';
 import path from 'path';
 import fs from 'fs';
 import minimatch from 'minimatch';
 import { cli } from 'cli-ux';
 import os from 'os';
+import BSON from 'bson-ext';
+import moment from 'moment';
 
-const log = LogManager.Instance;
+const customBar = (title: string) =>
+  cli.progress({
+    format: `${title} | {bar} | {value}/{total} Files`,
+    barCompleteChar: '\u2588',
+    barIncompleteChar: '\u2591',
+  });
+interface MetaData {
+  machineInfo: string;
+  count: number;
+  source: { [key: string]: { count?: number; lastUpdated?: Date } };
+  lastUpdated: Date;
+}
+
+interface DBValue {
+  value: string;
+  raw?: { [key: string]: any };
+}
 
 // key format source|key|datetime
-function dbKeyToFinderValue(key: string): EnvVar {
+function dBKeyToEnvVarValue(key: string): EnvVar {
   const keyArray = key.split('|');
   const parameter: EnvVar = {
     cloud: keyArray[0],
@@ -23,20 +41,20 @@ function dbKeyToFinderValue(key: string): EnvVar {
   return parameter;
 }
 
-function dbKeyToFinderKey(key: string): string {
+function dBKeyToEnvVarKey(key: string): string {
   const keyArray = key.split('|');
   return keyArray[2];
 }
 
-function parameterValueToDbKey(parameter: EnvVar): string {
+function envVarValueToDbKey(parameter: EnvVar): string {
   return `${parameter.cloud}|${parameter.source}|${parameter.key}|${parameter.modifiedDate}`;
 }
 
-function parameterValueToDbValue(parameter: EnvVar): string {
+function envVarValueToDbValue(parameter: EnvVar): DBValue {
   if (parameter?.value) {
-    return parameter?.value;
+    return { value: parameter.value, raw: parameter.raw };
   }
-  return '';
+  return { value: '', raw: undefined };
 }
 
 function stretchString(s: string, outputLength: number) {
@@ -66,28 +84,55 @@ function decrypt(key: Buffer, encryptedData: Buffer) {
 export class LocalDb {
   private db: any;
 
-  private password: string | undefined;
+  private key: Buffer | undefined;
 
-  private async saveMetaDataToDatabase(password: string, metaData: string) {
-    const key = stretchString(password, 32);
-    // const iv = stretchString('metadata', 16);
-    const encryptedMessage = encrypt(key, Buffer.from(metaData));
-    await this.db.put('metadata', encryptedMessage);
+  private bson = new BSON([
+    BSON.Binary,
+    BSON.Code,
+    BSON.DBRef,
+    BSON.Decimal128,
+    BSON.Double,
+    BSON.Int32,
+    BSON.Long,
+    BSON.Map,
+    BSON.MaxKey,
+    BSON.MinKey,
+    BSON.ObjectId,
+    BSON.BSONRegExp,
+    BSON.Symbol,
+    BSON.Timestamp,
+  ]);
+
+  private encryptJson(object: { [key: string]: any }): Buffer {
+    const encryptedMessage = encrypt(
+      this.key as Buffer,
+      this.bson.serialize(object)
+    );
+    return encryptedMessage;
   }
 
-  private async getMetaDataFromDatabase(password: string): Promise<string> {
-    const key = stretchString(password, 32);
-    // const iv = stretchString('metadata', 16);
+  private decryptJson(object: Buffer): { [key: string]: any } {
+    const clearText = decrypt(this.key as Buffer, object);
+    const decryptedMessage = this.bson.deserialize(clearText);
+    return decryptedMessage;
+  }
+
+  private async saveMetaDataToDatabase(metaData: MetaData) {
+    await this.db.put('metadata', this.encryptJson(metaData));
+  }
+
+  private async getMetaDataFromDatabase(): Promise<MetaData> {
     const encryptedMessage = (await this.db.get('metadata')) as Buffer;
-    const clearText = decrypt(key, encryptedMessage);
-    return clearText.toString();
+    return this.decryptJson(encryptedMessage) as MetaData;
   }
 
-  public async checkDatabasePassword(password: string): Promise<boolean> {
+  public async unlockDatabase(password: string): Promise<boolean> {
+    this.key = stretchString(password, 32);
     try {
-      const metaData = await this.getMetaDataFromDatabase(password);
-      if (metaData === 'PASSWORD_OK') {
-        this.password = password;
+      const metaData = await this.getMetaDataFromDatabase();
+      if (
+        metaData.machineInfo === `${os.userInfo().username}:${os.hostname()}`
+      ) {
         return true;
       }
       return false;
@@ -96,24 +141,14 @@ export class LocalDb {
     }
   }
 
-  public async setDatabasePassword(password: string) {
-    await this.saveMetaDataToDatabase(password, 'PASSWORD_OK');
-  }
-
-  public deleteDatabase(filePath: string) {
-    if (process.env.NODE_ENV === 'development') {
-      if (fs.existsSync(path.join(filePath, 'localdb'))) {
-        fs.unlinkSync('./localdb');
-      }
-    } else {
-      try {
-        if (fs.existsSync(path.join(filePath, 'localdb'))) {
-          fs.unlinkSync(path.join(filePath, 'localdb'));
-        }
-      } catch (error) {
-        log.error(error);
-      }
-    }
+  public async setNewDatabasePassword(password: string) {
+    this.key = stretchString(password, 32);
+    await this.saveMetaDataToDatabase({
+      machineInfo: `${os.userInfo().username}:${os.hostname()}`,
+      count: 0,
+      source: {},
+      lastUpdated: moment().toDate(),
+    });
   }
 
   public openDatabase(filePath: string) {
@@ -129,7 +164,7 @@ export class LocalDb {
         .on('data', function (key: any) {
           const keyString: string = key.toString() as string;
           if (keyString !== 'metadata') {
-            parameterDict[dbKeyToFinderKey(keyString)] = dbKeyToFinderValue(
+            parameterDict[dBKeyToEnvVarKey(keyString)] = dBKeyToEnvVarValue(
               keyString
             );
           }
@@ -159,9 +194,9 @@ export class LocalDb {
           const keyString: string = key.toString() as string;
           if (keyString === 'metadata') return;
 
-          const envVar = dbKeyToFinderValue(keyString);
+          const envVar = dBKeyToEnvVarValue(keyString);
           if (envVar.cloud === cloud && envVar.source === source) {
-            parameterDict[dbKeyToFinderKey(keyString)] = envVar;
+            parameterDict[dBKeyToEnvVarKey(keyString)] = envVar;
           }
         })
         .on('error', function (err: any) {
@@ -179,29 +214,34 @@ export class LocalDb {
   public async findKeyInDatabaseForValue(
     valuesToFind: Array<string>
   ): Promise<EnvVarDict> {
+    const metaData = await this.getMetaDataFromDatabase();
+    const dBCount = metaData.count ?? 0;
+
     const parameters: EnvVarDict = {};
-    const password = this.password as string;
-    const cryptKey = stretchString(password, 32);
-    // const cryptIv = stretchString('ivsalt', 16);
+    const bar = customBar('Searching for Key in Value');
+    bar.start(dBCount, 0);
+    let count = 1;
     await new Promise((resolve, reject) => {
       this.db
         .createReadStream()
-        .on('data', function (data: any) {
+        .on('data', (data: any) => {
           const keyString: string = data.key.toString() as string;
-          const valueString: Buffer = data.value;
+          const valueBuffer: Buffer = data.value;
 
           if (keyString !== 'metadata') {
-            const decryptedValue = decrypt(cryptKey, valueString);
+            bar.update(count++);
+            const decryptedValue = this.decryptJson(valueBuffer) as DBValue;
 
-            const decryptedString = decryptedValue.toString();
+            const decryptedString = decryptedValue.value;
             const found = valuesToFind.some((value) => {
               return minimatch(decryptedString, value);
             });
 
             if (found) {
-              const parameter = dbKeyToFinderValue(keyString);
-              parameter.value = decryptedValue.toString();
-              parameters[dbKeyToFinderKey(keyString)] = parameter;
+              const parameter = dBKeyToEnvVarValue(keyString);
+              parameter.value = decryptedString;
+              parameter.raw = decryptedValue.raw;
+              parameters[dBKeyToEnvVarKey(keyString)] = parameter;
             }
           }
         })
@@ -210,6 +250,7 @@ export class LocalDb {
           reject(err);
         })
         .on('close', function () {
+          bar.stop();
           resolve();
         });
     });
@@ -219,27 +260,32 @@ export class LocalDb {
   public async findValueInDatabaseForKey(
     keysToFind: Array<string>
   ): Promise<EnvVarDict> {
+    const metaData = await this.getMetaDataFromDatabase();
+    const dBCount = metaData.count ?? 0;
+
     const parameters: EnvVarDict = {};
-    const password = this.password as string;
-    const cryptKey = stretchString(password, 32);
-    // const cryptIv = stretchString('ivsalt', 16);
+    const bar = customBar('Searching for Value in Key');
+    bar.start(dBCount, 0);
+    let count = 1;
     await new Promise((resolve, reject) => {
       this.db
         .createReadStream()
-        .on('data', function (data: any) {
+        .on('data', (data: any) => {
           const keyString: string = data.key.toString() as string;
-          const valueString: Buffer = data.value;
+          const valueBuffer: Buffer = data.value;
+
           if (keyString !== 'metadata') {
+            bar.update(count++);
             const found = keysToFind.some((key) => {
               return minimatch(keyString, key);
             });
 
             if (found) {
-              const decryptedValue = decrypt(cryptKey, valueString);
-              const decryptedString = decryptedValue.toString();
-              const parameter = dbKeyToFinderValue(keyString);
-              parameter.value = decryptedString;
-              parameters[dbKeyToFinderKey(keyString)] = parameter;
+              const decryptedValue = this.decryptJson(valueBuffer) as DBValue;
+              const parameter = dBKeyToEnvVarValue(keyString);
+              parameter.value = decryptedValue.value;
+              parameter.raw = decryptedValue.raw;
+              parameters[dBKeyToEnvVarKey(keyString)] = parameter;
             }
           }
         })
@@ -248,6 +294,7 @@ export class LocalDb {
           reject(err);
         })
         .on('close', function () {
+          bar.stop();
           resolve();
         });
     });
@@ -256,28 +303,36 @@ export class LocalDb {
 
   public async saveToDatabase(parameters: EnvVarDict): Promise<boolean> {
     const dbOps: Array<{ type: string; key: string; value?: Buffer }> = [];
-    const cryptKey = stretchString(this.password as string, 32);
-    // const cryptIv = stretchString('ivsalt', 16);
-    Object.values(parameters).forEach((value, index, array) => {
-      log.info(`processing ${index} of ${array.length}`);
-      const key = parameterValueToDbKey(value as EnvVar);
-      const parameterValue = parameterValueToDbValue(value as EnvVar);
+    if (Object.keys(parameters).length === 0) {
+      return false;
+    }
 
-      const encryptedValue = encrypt(cryptKey, Buffer.from(parameterValue));
+    const metaData = await this.getMetaDataFromDatabase();
+    const dBCount = metaData.count ?? 0;
+    let count = 0;
+
+    const values = Object.values(parameters);
+    log.verbose(`encrypting ${values.length} values`);
+    values.forEach((value, index, array) => {
+      const key = envVarValueToDbKey(value as EnvVar);
+      const parameterValue = envVarValueToDbValue(value as EnvVar);
+      const encryptedValue = this.encryptJson(parameterValue);
       dbOps.push({ type: 'put', key, value: encryptedValue });
+      count++;
     });
 
     if (parameters === null || parameters === undefined || parameters === {}) {
       return false;
     }
 
+    log.verbose('inserting new values into cache');
     try {
       await new Promise((resolve, reject) => {
         this.db.batch(dbOps, function (err: Error) {
           if (err) {
             reject(err);
           }
-          log.info('Successfully saved to database');
+          log.verbose('Successfully saved to database');
           resolve();
         });
       });
@@ -286,6 +341,20 @@ export class LocalDb {
       return false;
     }
 
+    // update source metadata
+    const now = new Date(moment().toDate());
+    const envVarSample = Object.values(parameters)[0];
+    const sourceName = `${envVarSample.cloud}:${envVarSample.source}`;
+    const sourceCount = metaData?.source[sourceName]?.count ?? 0;
+    metaData.source[sourceName] = {
+      count: sourceCount + count,
+      lastUpdated: now,
+    };
+
+    // update database metadata
+    metaData.count = dBCount + count;
+    metaData.lastUpdated = now;
+    this.saveMetaDataToDatabase(metaData);
     return true;
   }
 }

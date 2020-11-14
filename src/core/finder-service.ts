@@ -12,7 +12,7 @@ function printOutput(finderDict: EnvVarDict) {
     },
     source: {},
     key: {
-      header: 'key (identifier)', // override column header
+      header: 'Key', // override column header
       minWidth: 10, // column must display at this width or greater
     },
     value: {},
@@ -59,31 +59,34 @@ export class FinderService {
 
   public async runSearch(values: Array<string>, runRemote: boolean) {
     if (runRemote) {
+      cli.action.start('updating cache with remote data');
       await Promise.all(
         this.cloudService.map((value) => value.fetchAndUpdateDb())
       );
+      cli.action.stop();
     }
-
     // now that database is updated, iterate through database to find value
     const foundItems = await this.localDBService.findKeyInDatabaseForValue(
       values
     );
-    // log.json(foundItems);
+    log.noFormatting('\n');
     printOutput(foundItems);
   }
 
   public async runKeySearch(keys: string[], runRemote: boolean) {
     if (runRemote) {
+      cli.action.start('updating cache with remote data');
       await Promise.all(
         this.cloudService.map((value) => () => value.fetchAndUpdateDb())
       );
+      cli.action.stop();
     }
 
     // now that database is updated, iterate through database to find value
     const foundItems = await this.localDBService.findValueInDatabaseForKey(
       keys
     );
-    // log.json(foundItems);
+    log.prettyPrint('\n');
     printOutput(foundItems);
   }
 }

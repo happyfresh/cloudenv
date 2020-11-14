@@ -10,6 +10,11 @@ import {
   PQueue,
 } from '../core/envvar-interface';
 
+enum SourceInfo {
+  cloud = 'AWS',
+  source = 'Route53:HostedZone',
+}
+
 interface NetworkResultItem {
   Name?: string;
   ResourceRecords?: Array<{ Value: string }>;
@@ -24,12 +29,20 @@ function transformNetworkResultToEnvVar(
     value: networkResult.Name,
     raw: networkResult,
     modifiedDate: moment().toISOString(),
-    cloud: 'AWS',
-    source: 'Route53:HostedZone',
+    cloud: SourceInfo.cloud,
+    source: SourceInfo.source,
   };
 }
 
 export class AWSRoute53 implements EnvVarSource {
+  public get cloud() {
+    return SourceInfo.cloud;
+  }
+
+  public get source() {
+    return SourceInfo.source;
+  }
+
   public capabilityOfSource: CapabilityOfEnvVarSource =
     CapabilityOfEnvVarSource.GET_ALL_ONLY;
 

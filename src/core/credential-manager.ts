@@ -141,6 +141,7 @@ export class CredentialManager {
   }
 
   public async getAccountAlias() {
+    log.info('Requesting AWS account alias');
     const accountAliases = await new AWS.IAM().listAccountAliases({}).promise();
     log.info(
       `Logged into AWS account alias : ${accountAliases.AccountAliases}`

@@ -16,7 +16,6 @@
         ".stagingenv",
         "--configFile",
         "stagingConfig.yaml",
-        "--no-remote",
         "search*",
         "*search*"
       ],

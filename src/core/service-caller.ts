@@ -35,12 +35,16 @@ const getAllAndFillStrategy: UpdateDatabaseStrategy = async (
   const resultDict = {};
   let nextToken;
   do {
+    log.http(`requesting ${service.cloud}:${service.source} resources`);
     const result: EnvVarReturnValue = await service.getAllEnvVars(
       promiseQueue,
       nextToken
     );
     nextToken = result.nextToken;
     Object.assign(resultDict, result.envVarDict);
+    Object.keys(result.envVarDict).forEach((key) => {
+      log.http(`received ${service.cloud}:${service.source} ${key}`);
+    });
   } while (nextToken);
 
   await dB.saveToDatabase(resultDict);
@@ -88,6 +92,7 @@ const checkModifiedAndUpdateStrategy: UpdateDatabaseStrategy = async (
   const resultDict: EnvVarDict = {};
   let modifiedNextToken;
   do {
+    log.http(`requesting ${service.cloud}:${service.source} modified state`);
     const result: EnvVarReturnValue = await service.checkModifiedEnvVars(
       promiseQueue,
       modifiedNextToken
@@ -95,6 +100,10 @@ const checkModifiedAndUpdateStrategy: UpdateDatabaseStrategy = async (
     modifiedNextToken = result.nextToken;
     Object.assign(resultDict, result.envVarDict);
   } while (modifiedNextToken);
+
+  log.http(
+    `completed fetching ${service.cloud}:${service.source} remote state information`
+  );
 
   const list = Object.keys(resultDict);
   // check if empty
@@ -118,6 +127,7 @@ const checkModifiedAndUpdateStrategy: UpdateDatabaseStrategy = async (
   const envVarDict = {};
   let nextToken;
   do {
+    log.http(`requesting ${service.cloud}:${service.source} resources`);
     const envVarResult: EnvVarReturnValue = await service.getEnvVars(
       promiseQueue,
       updateList,
@@ -125,6 +135,9 @@ const checkModifiedAndUpdateStrategy: UpdateDatabaseStrategy = async (
     );
     nextToken = envVarResult.nextToken;
     Object.assign(envVarDict, envVarResult.envVarDict);
+    Object.keys(envVarResult.envVarDict).forEach((key) => {
+      log.http(`received ${service.cloud}:${service.source} ${key}`);
+    });
   } while (nextToken);
 
   await dB.saveToDatabase(envVarDict);

@@ -25,6 +25,8 @@ export enum CapabilityOfEnvVarSource {
 }
 
 export interface EnvVarSource {
+  cloud: string;
+  source: string;
   capabilityOfSource: CapabilityOfEnvVarSource;
   getAllEnvVars?: (
     promiseQueue: PQueue,

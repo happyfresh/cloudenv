@@ -9,7 +9,7 @@ export const schema = {
   },
   logLevel: {
     doc: 'The log level.',
-    format: ['info', 'debug'],
+    format: ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'],
     default: 'info',
     env: 'CLOUDENV_LOGLEVEL',
     arg: 'logLevel',
@@ -66,6 +66,13 @@ export const schema = {
     },
   },
   aws: {
+    logging: {
+      doc: 'enable / disable logging from AWS SDK.',
+      format: Boolean,
+      default: false,
+      env: 'CLOUDENV_AWS_LOGGING',
+      arg: 'awsLogging',
+    },
     profile: {
       doc: 'The name of the aws profile to get credentials from.',
       format: String,
@@ -78,14 +85,12 @@ export const schema = {
       format: String,
       default: '',
       env: 'AWS_ACCESS_KEY_ID',
-      arg: 'awsAccessKeyId',
     },
     secretAccessKey: {
       doc: 'The aws secret access key credentials to use.',
       format: String,
       default: '',
       env: 'AWS_SECRET_ACCESS_KEY',
-      arg: 'awsSecretAccessKey',
     },
     region: {
       doc: 'The aws default region to use.',

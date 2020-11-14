@@ -37,15 +37,18 @@ export class LogManager {
 
   private _initialized = false;
 
+  private _enableAWSLogging = false;
+
   private constructor() {
     this._loggers = new winston.Container();
-    this._loggers.add('info', {
+
+    this._loggers.add('formatted', {
       level: 'info',
       format: winston.format.combine(
         winston.format.colorize(),
         winston.format.timestamp({
           format: () => {
-            return moment().format('YYYY-MM-DD HH:mm:ss');
+            return moment().format('HH:mm:ss');
           },
         }),
         winston.format.printf(({ level, message, timestamp, ...meta }) => {
@@ -57,50 +60,24 @@ export class LogManager {
       ),
       transports: [new winston.transports.Console()],
     });
-    this._loggers.add('debug', {
-      level: 'debug',
-      format: winston.format.combine(
-        winston.format.errors({ stack: false }),
-        winston.format.colorize(),
-        winston.format.timestamp({
-          format: () => {
-            return moment().format('YYYY-MM-DD HH:mm:ss');
-          },
-        }),
-        winston.format.printf(
-          ({ level, message, timestamp, stack, ...meta }) => {
-            let printed = `${timestamp} ${level}: ${formatMessage(
-              message
-            )} ${formatMeta(meta)}`;
-            if (stack) {
-              printed += `- ${stack}`;
-            }
-            return printed;
-          }
-        )
-      ),
-      // transports: [new winston.transports.Console()],
-      transports: [new winston.transports.Console()],
-    });
-    this._loggers.add('outputDebug', {
-      level: 'debug',
-      format: winston.format.prettyPrint(),
-      transports: [new winston.transports.Console()],
-    });
 
-    this._loggers.add('output', {
+    this._loggers.add('pretty', {
       level: 'info',
       format: winston.format.prettyPrint(),
       transports: [new winston.transports.Console()],
     });
 
-    if (process.env.NODE_ENV === 'development') {
-      this._usedLogger = this._loggers.get('debug');
-      this._awsUsedLogger = this._loggers.get('debug');
-    } else {
-      this._usedLogger = this._loggers.get('info');
-      this._awsUsedLogger = this._loggers.get('info');
-    }
+    this._loggers.add('plain', {
+      level: 'info',
+      format: winston.format.printf(({ message, ...meta }) => {
+        const printed = `${formatMessage(message)} ${formatMeta(meta)}`;
+        return printed;
+      }),
+      transports: [new winston.transports.Console()],
+    });
+
+    this._usedLogger = this._loggers.get('formatted');
+    this._awsUsedLogger = this._loggers.get('formatted');
   }
 
   public static get Instance() {
@@ -109,12 +86,33 @@ export class LogManager {
     return instance;
   }
 
+  public get enableAWSLogging(): boolean {
+    return this._enableAWSLogging;
+  }
+
+  public set enableAWSLogging(enable: boolean) {
+    this._enableAWSLogging = enable;
+  }
+
   public get loggers(): winston.Container {
     return this._loggers;
   }
 
   public get initialized() {
     return this._initialized;
+  }
+
+  public setLogLevel(level: string) {
+    if (
+      !['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'].some(
+        (value) => value === level
+      )
+    )
+      throw new Error(
+        "log level must be one of 'error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'"
+      );
+    this._usedLogger.transports[0].level = level;
+    this._awsUsedLogger.transports[0].level = level;
   }
 
   public setLogger(loggerName: string) {
@@ -133,37 +131,30 @@ export class LogManager {
     }
   }
 
-  public jsonDebug(message: string | any, ...meta: any | any[]) {
+  public prettyPrint(message: string | any, ...meta: any | any[]) {
     if (meta.length === 0) {
-      this._loggers.get('outputDebug').debug(message);
+      this._loggers.get('pretty').info(message);
     } else {
-      this._loggers.get('outputDebug').debug(message, meta);
+      this._loggers.get('pretty').info(message, meta);
     }
   }
 
-  public json(message: string | any, ...meta: any | any[]) {
+  public noFormatting(message: string | any, ...meta: any | any[]) {
     if (meta.length === 0) {
-      this._loggers.get('output').info(message);
+      this._loggers.get('plain').info(message);
     } else {
-      this._loggers.get('output').info(message, meta);
+      this._loggers.get('plain').info(message, meta);
     }
   }
 
-  /* public info(...args: any[]) {
-    const argus = args as [object];
-    // eslint-disable-next-line no-useless-call
-    return this._usedLogger.info.apply(this._usedLogger, [...argus]);
-  } */
   public awsDebug(message: string | any, ...meta: any | any[]) {
-    /* this.resetTailCanvas();
-    if (typeof meta === 'undefined') {
+    if (!this.enableAWSLogging) return;
+
+    if (meta.length === 0) {
       this._awsUsedLogger.debug(message);
-    } else if (typeof message === 'string' && typeof meta !== 'undefined') {
-      this._awsUsedLogger.debug(message, meta);
     } else {
-      this._awsUsedLogger.debug(message);
+      this._awsUsedLogger.debug(message, meta);
     }
-    this.renderTailCanvas(); */
   }
 
   public debug(message: string | any, ...meta: any | any[]) {
@@ -198,6 +189,22 @@ export class LogManager {
     }
   }
 
+  public http(message: string | any, ...meta: any | any[]) {
+    if (meta.length === 0) {
+      this._usedLogger.http(message);
+    } else {
+      this._usedLogger.http(message, meta);
+    }
+  }
+
+  public silly(message: string | any, ...meta: any | any[]) {
+    if (meta.length === 0) {
+      this._usedLogger.silly(message);
+    } else {
+      this._usedLogger.silly(message, meta);
+    }
+  }
+
   public setAwsLogger(loggerName: string) {
     this._awsUsedLogger = this._loggers.get(loggerName);
   }
@@ -207,15 +214,13 @@ export class LogManager {
   }
 }
 
-const awsLogger = LogManager.Instance;
+export const log = LogManager.Instance;
 
 class AWSWinstonAdapter {
   public static log(...args: [object]) {
     // eslint-disable-next-line no-useless-call
-    return awsLogger.awsDebug.apply(awsLogger, [...args]);
+    return log.awsDebug.apply(log, [...args]);
   }
 }
 
 AWS.config.logger = AWSWinstonAdapter;
-
-export const log = LogManager.Instance;

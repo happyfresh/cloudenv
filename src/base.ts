@@ -1,7 +1,6 @@
-/* eslint-disable indent */
 import Command, { flags } from '@oclif/command';
 import { LocalDb } from './core';
-import { LogManager } from './util';
+import { log } from './util';
 import { OpsConfig } from 'ops-config';
 import { PathPriorityBuilderSync } from 'path-priority';
 import 'path-priority/lib/cjs/finders';
@@ -11,8 +10,6 @@ import path from 'path';
 import fs from 'fs';
 import { schema } from './schema';
 import cli from 'cli-ux';
-
-const log = LogManager.Instance;
 
 export default abstract class BaseCommand extends Command {
   protected Db: LocalDb | undefined;
@@ -42,7 +39,7 @@ export default abstract class BaseCommand extends Command {
       char: 'l',
       description: 'set the log level',
       required: false,
-      options: ['info', 'debug'],
+      options: ['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'],
     }),
     cacheName: flags.string({
       char: 'c',
@@ -51,6 +48,14 @@ export default abstract class BaseCommand extends Command {
     }),
     awsProfile: flags.string({
       description: 'use credentials from the aws profile',
+      required: false,
+    }),
+    awsRegion: flags.string({
+      description: 'set the aws region',
+      required: false,
+    }),
+    awsLogging: flags.string({
+      description: 'enable logging output from the aws sdk',
       required: false,
     }),
   };
@@ -68,9 +73,8 @@ export default abstract class BaseCommand extends Command {
   async init() {
     // do some initialization
     const { flags } = this.parse(BaseCommand);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { setPassword, ...restFlags } = flags;
-    OpsConfig.init(schema, restFlags as any);
+    // const { setPassword, ...restFlags } = flags;
+    OpsConfig.init(schema, flags as any);
 
     if (flags?.dotenvFile) {
       OpsConfig.usePriorityPreset('cli').loadFromPathPriority(
@@ -83,10 +87,10 @@ export default abstract class BaseCommand extends Command {
     }
 
     // setup logging
+    log.enableAWSLogging = OpsConfig.get('aws.logging');
     const logLevel = OpsConfig.get('logLevel');
     if (logLevel) {
-      LogManager.Instance.setLogger(logLevel);
-      LogManager.Instance.setAwsLogger(logLevel);
+      log.setLogLevel(logLevel);
     }
 
     // initialize database
@@ -144,7 +148,7 @@ export default abstract class BaseCommand extends Command {
     this.Db.openDatabase(cacheFullPath);
 
     if (newPassword) {
-      await this.Db.setDatabasePassword(newPassword);
+      await this.Db.setNewDatabasePassword(newPassword);
     } else if (!OpsConfig.get('password') && !flags.setPassword) {
       this.error('need a password', {
         exit: 1,
@@ -154,16 +158,32 @@ export default abstract class BaseCommand extends Command {
       });
     }
 
+    if (flags.setPassword !== undefined) {
+      try {
+        if (fs.existsSync(cacheFullPath)) {
+          const input = await cli.prompt(
+            `a cache file at ${cacheFullPath} already exists,\nsetting a new password will delete the old cache\ncontinue? (Yes/y or No/n)`
+          );
+          if (['yes', 'Yes', 'y', 'Y'].some((value) => value === input)) {
+            fs.unlinkSync(cacheFullPath);
+          } else {
+            log.warn('creation of new cache file aborted');
+            this.exit(1);
+          }
+        }
+      } catch (error) {
+        log.error(error);
+      }
+
+      this.Db.openDatabase(cacheFullPath);
+      await this.Db.setNewDatabasePassword(flags.setPassword);
+    }
+
     const password =
       flags?.setPassword || newPassword || OpsConfig.get('password');
 
-    if (flags.setPassword !== undefined) {
-      this.Db.deleteDatabase(cacheFullPath);
-      await this.Db.setDatabasePassword(flags.setPassword);
-    }
-
     // test if password works
-    const passwordOk = await this.Db.checkDatabasePassword(password as string);
+    const passwordOk = await this.Db.unlockDatabase(password as string);
 
     if (!passwordOk) {
       this.error('wrong password', {

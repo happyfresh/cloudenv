@@ -9,6 +9,11 @@ import {
   PQueue,
 } from '../core/envvar-interface';
 
+enum SourceInfo {
+  cloud = 'AWS',
+  source = 'SSM:ParameterStore',
+}
+
 function createTestType(func: Function) {
   if (func === Number || func === String || func === Boolean) {
     // Primitive type
@@ -46,13 +51,21 @@ function transformNetworkResultToEnvVar(
   return {
     key: key,
     modifiedDate: networkResult.LastModifiedDate?.toISOString(),
-    source: 'SSM:ParameterStore',
-    cloud: 'AWS',
+    source: SourceInfo.source,
+    cloud: SourceInfo.cloud,
     value: networkResult.Value,
   };
 }
 
 export class AWSParameterStore implements EnvVarSource {
+  public get cloud() {
+    return SourceInfo.cloud;
+  }
+
+  public get source() {
+    return SourceInfo.source;
+  }
+
   public capabilityOfSource: CapabilityOfEnvVarSource =
     CapabilityOfEnvVarSource.CHECK_MODIFIED_AND_SPECIFIC;
 
