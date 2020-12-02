@@ -58,13 +58,37 @@ export class LogManager {
           return printed;
         })
       ),
-      transports: [new winston.transports.Console()],
+      transports: [
+        new winston.transports.Console({
+          stderrLevels: [
+            'error',
+            'warn',
+            'info',
+            'http',
+            'verbose',
+            'debug',
+            'silly',
+          ],
+        }),
+      ],
     });
 
     this._loggers.add('pretty', {
       level: 'info',
       format: winston.format.prettyPrint(),
-      transports: [new winston.transports.Console()],
+      transports: [
+        new winston.transports.Console({
+          stderrLevels: [
+            'error',
+            'warn',
+            'info',
+            'http',
+            'verbose',
+            'debug',
+            'silly',
+          ],
+        }),
+      ],
     });
 
     this._loggers.add('plain', {
@@ -73,7 +97,19 @@ export class LogManager {
         const printed = `${formatMessage(message)} ${formatMeta(meta)}`;
         return printed;
       }),
-      transports: [new winston.transports.Console()],
+      transports: [
+        new winston.transports.Console({
+          stderrLevels: [
+            'error',
+            'warn',
+            'info',
+            'http',
+            'verbose',
+            'debug',
+            'silly',
+          ],
+        }),
+      ],
     });
 
     this._usedLogger = this._loggers.get('formatted');

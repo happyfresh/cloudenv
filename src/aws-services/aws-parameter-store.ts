@@ -1,12 +1,14 @@
 /* eslint-disable no-await-in-loop */
 import AWS from 'aws-sdk';
 import {
-  CapabilityOfEnvVarSource,
-  EnvVarDict,
-  EnvVarReturnValue,
-  EnvVarSource,
+  ReadCapabilityOfService,
+  EnvVarArray,
+  GetEnvVarReturnValue,
+  EnvVarService,
   EnvVar,
   PQueue,
+  WriteCapabilityOfService,
+  PutEnvVarReturnValue,
 } from '../core/envvar-interface';
 
 enum SourceInfo {
@@ -50,14 +52,14 @@ function transformNetworkResultToEnvVar(
 ): EnvVar {
   return {
     key: key,
-    modifiedDate: networkResult.LastModifiedDate?.toISOString(),
+    modifiedDate: networkResult.LastModifiedDate,
     source: SourceInfo.source,
     cloud: SourceInfo.cloud,
     value: networkResult.Value,
   };
 }
 
-export class AWSParameterStore implements EnvVarSource {
+export class AWSParameterStore implements EnvVarService {
   public get cloud() {
     return SourceInfo.cloud;
   }
@@ -66,15 +68,20 @@ export class AWSParameterStore implements EnvVarSource {
     return SourceInfo.source;
   }
 
-  public capabilityOfSource: CapabilityOfEnvVarSource =
-    CapabilityOfEnvVarSource.CHECK_MODIFIED_AND_SPECIFIC;
+  public get readCapability(): ReadCapabilityOfService {
+    return ReadCapabilityOfService.CHECK_MODIFIED_AND_SPECIFIC;
+  }
+
+  public get writeCapability(): WriteCapabilityOfService {
+    return WriteCapabilityOfService.WRITE_ONE;
+  }
 
   private service = new AWS.SSM({ apiVersion: '2014-11-06', maxRetries: 2 });
 
   public async checkModifiedEnvVars(
     promiseQueue: PQueue,
     nextToken?: any
-  ): Promise<EnvVarReturnValue> {
+  ): Promise<GetEnvVarReturnValue> {
     if (nextToken && !(typeof nextToken === 'string')) {
       throw new Error('nextToken must be typeof string');
     }
@@ -90,24 +97,24 @@ export class AWSParameterStore implements EnvVarSource {
     const token = result?.NextToken;
     const parameters = result?.Parameters;
 
-    const envVar: EnvVarDict = {};
+    const envVar: EnvVarArray = [];
     if (!parameters) {
-      return { nextToken: undefined, envVarDict: {} };
+      return { nextToken: undefined, envVarArray: [] };
     }
 
     parameters.forEach((value) => {
       const key = value?.Name as string;
-      envVar[key] = transformNetworkResultToEnvVar(key, value);
+      envVar.push(transformNetworkResultToEnvVar(key, value));
     });
 
-    return { nextToken: token, envVarDict: envVar };
+    return { nextToken: token, envVarArray: envVar };
   }
 
   public async getEnvVars(
     promiseQueue: PQueue,
     list: string[],
     nextToken?: any
-  ): Promise<EnvVarReturnValue> {
+  ): Promise<GetEnvVarReturnValue> {
     if (list === undefined || list === null || list.length === 0) {
       throw new Error('list must be longer than 0');
     }
@@ -135,16 +142,36 @@ export class AWSParameterStore implements EnvVarSource {
 
     const parameters = result?.Parameters as AWS.SSM.ParameterList;
 
-    const envVar: EnvVarDict = {};
+    const envVar: EnvVarArray = [];
     if (!parameters) {
-      return { nextToken: undefined, envVarDict: {} };
+      return { nextToken: undefined, envVarArray: [] };
     }
 
     parameters.forEach((value) => {
       const key = value?.Name as string;
-      envVar[key] = transformNetworkResultToEnvVar(key, value);
+      envVar.push(transformNetworkResultToEnvVar(key, value));
     });
 
-    return { nextToken: nextList, envVarDict: envVar };
+    return { nextToken: nextList, envVarArray: envVar };
+  }
+
+  public async putEnvVar(
+    promiseQueue: PQueue,
+    envVar: EnvVar
+  ): Promise<PutEnvVarReturnValue> {
+    if (!envVar?.value || !envVar?.key) {
+      throw new Error('envVar cannot be empty');
+    }
+    const params: AWS.SSM.PutParameterRequest = {
+      Name: envVar?.key,
+      Value: envVar?.value,
+      Overwrite: true,
+    };
+
+    const putResult = await promiseQueue.add(() =>
+      this.service.putParameter(params).promise()
+    );
+
+    return { raw: { newVersion: putResult.Version } };
   }
 }

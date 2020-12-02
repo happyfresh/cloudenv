@@ -21,7 +21,7 @@ $ npm install -g cloudenv
 $ cloudenv COMMAND
 running command...
 $ cloudenv (-v|--version|version)
-cloudenv/0.0.0 darwin-x64 node-v14.8.0
+cloudenv/0.0.0 linux-x64 node-v14.10.1
 $ cloudenv --help [COMMAND]
 USAGE
   $ cloudenv COMMAND
@@ -32,7 +32,6 @@ USAGE
 <!-- commands -->
 * [`cloudenv help [COMMAND]`](#cloudenv-help-command)
 * [`cloudenv key KEY [ADDITIONALKEYS]`](#cloudenv-key-key-additionalkeys)
-* [`cloudenv ls`](#cloudenv-ls)
 * [`cloudenv value VALUE [ADDITIONALVALUES]`](#cloudenv-value-value-additionalvalues)
 
 ## `cloudenv help [COMMAND]`
@@ -74,26 +73,6 @@ OPTIONS
 ```
 
 _See code: [src/commands/key.ts](https://github.com/personal/cloudenv/blob/v0.0.0/src/commands/key.ts)_
-
-## `cloudenv ls`
-
-list items from the local database cache
-
-```
-USAGE
-  $ cloudenv ls
-
-OPTIONS
-  -h, --help                 show CLI help
-  -l, --logLevel=info|debug  [default: info] set the log level
-  -p, --password=password    password to decrypt local cache
-  --setPassword=setPassword  set a new password, this will create a new local cache
-
-EXAMPLE
-  $ cloudenv ls
-```
-
-_See code: [src/commands/ls.ts](https://github.com/personal/cloudenv/blob/v0.0.0/src/commands/ls.ts)_
 
 ## `cloudenv value VALUE [ADDITIONALVALUES]`
 

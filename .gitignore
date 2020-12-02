@@ -86,4 +86,6 @@ test
 ./ops-config
 ops-config/
 ops-config/*
+cloudenv/
+cloudenv/*
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json

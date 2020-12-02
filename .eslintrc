@@ -6,6 +6,7 @@
     "semi": "off",
     "arrow-parens": "off",
     "object-curly-spacing": "off",
-    "indent": ["error", 2, { "MemberExpression": 1 }]
+    "indent": ["error", 2, { "MemberExpression": 1 }],
+    "operator-linebreak": "off"
   }
 }

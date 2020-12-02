@@ -1,10 +1,13 @@
 /* eslint-disable no-await-in-loop */
 import {
-  EnvVarSource,
-  CapabilityOfEnvVarSource,
+  EnvVarService,
+  ReadCapabilityOfService,
   PQueue,
-  EnvVarReturnValue,
-  EnvVarDict,
+  GetEnvVarReturnValue,
+  EnvVarArray,
+  PutEnvVarReturnValue,
+  WriteCapabilityOfService,
+  EnvVar,
 } from './envvar-interface';
 import { LocalDb } from './local-db';
 import { log } from '../util';
@@ -20,52 +23,64 @@ import { OpsConfig } from 'ops-config';
 export type UpdateDatabaseStrategy = (
   promiseQueue: PQueue,
   dB: LocalDb,
-  service: EnvVarSource
-) => Promise<void>;
+  service: EnvVarService
+) => Promise<void> | never;
+
+export type UpdateRemoteStrategy = (
+  promiseQueue: PQueue,
+  service: EnvVarService,
+  overWriteValue: string,
+  envVars: EnvVarArray
+) => Promise<UpdateRemoteStrategyReturnValue>;
+
+export interface UpdateRemoteStrategyReturnValue {
+  success: Array<{ envVar: EnvVar; raw: any }>;
+  failed: Array<{ envVar: EnvVar; error: any }>;
+}
 
 // This strategy gets all remote items and update's the database
 const getAllAndFillStrategy: UpdateDatabaseStrategy = async (
   promiseQueue: PQueue,
   dB: LocalDb,
-  service: EnvVarSource
+  service: EnvVarService
 ): Promise<void> => {
   if (!service.getAllEnvVars) {
     throw new Error(`getAllEnvVars is not defined for service ${service}`);
   }
-  const resultDict = {};
+  let resultArray: EnvVarArray = [];
   let nextToken;
   do {
     log.http(`requesting ${service.cloud}:${service.source} resources`);
-    const result: EnvVarReturnValue = await service.getAllEnvVars(
+    const result: GetEnvVarReturnValue = await service.getAllEnvVars(
       promiseQueue,
       nextToken
     );
     nextToken = result.nextToken;
-    Object.assign(resultDict, result.envVarDict);
-    Object.keys(result.envVarDict).forEach((key) => {
-      log.http(`received ${service.cloud}:${service.source} ${key}`);
+    resultArray = resultArray.concat(result.envVarArray);
+    result.envVarArray.forEach((envVar) => {
+      log.http(`received ${service.cloud}:${service.source} ${envVar.key}`);
     });
   } while (nextToken);
 
-  await dB.saveToDatabase(resultDict);
+  await dB.saveToDatabase(resultArray);
 };
 
 const compareRemoteWithDatabase = (
-  remote: EnvVarDict,
-  database: EnvVarDict
+  remote: EnvVarArray,
+  database: EnvVarArray
 ): Array<string> => {
   const getFinderList: Array<string> = [];
-  Object.keys(remote).forEach((value) => {
-    const databaseFinder = database[value];
+  remote.forEach((value) => {
+    const databaseFinder = database.find((envVar) => envVar.key === value.key);
     if (databaseFinder) {
       const isSame = moment(databaseFinder.modifiedDate).isSame(
-        remote[value].modifiedDate
+        value.modifiedDate
       );
       if (!isSame) {
-        getFinderList.push(value);
+        getFinderList.push(value.key);
       }
     } else {
-      getFinderList.push(value);
+      getFinderList.push(value.key);
     }
   });
   return getFinderList;
@@ -76,7 +91,7 @@ const compareRemoteWithDatabase = (
 const checkModifiedAndUpdateStrategy: UpdateDatabaseStrategy = async (
   promiseQueue: PQueue,
   dB: LocalDb,
-  service: EnvVarSource
+  service: EnvVarService
 ): Promise<void> => {
   if (!service.checkModifiedEnvVars) {
     throw new Error(
@@ -89,82 +104,171 @@ const checkModifiedAndUpdateStrategy: UpdateDatabaseStrategy = async (
   }
 
   // check if there are any modified env vars
-  const resultDict: EnvVarDict = {};
+  let resultArray: EnvVarArray = [];
   let modifiedNextToken;
   do {
     log.http(`requesting ${service.cloud}:${service.source} modified state`);
-    const result: EnvVarReturnValue = await service.checkModifiedEnvVars(
+    const result: GetEnvVarReturnValue = await service.checkModifiedEnvVars(
       promiseQueue,
       modifiedNextToken
     );
     modifiedNextToken = result.nextToken;
-    Object.assign(resultDict, result.envVarDict);
+    resultArray = resultArray.concat(result.envVarArray);
   } while (modifiedNextToken);
 
   log.http(
     `completed fetching ${service.cloud}:${service.source} remote state information`
   );
 
-  const list = Object.keys(resultDict);
   // check if empty
-  if (list.length === 0) {
+  if (resultArray.length === 0) {
     // nothing to add to database, so just return
     return Promise.resolve();
   }
 
-  const cloud = resultDict[list[0]].cloud;
-  const source = resultDict[list[0]].source;
+  const cloud = resultArray[0].cloud;
+  const source = resultArray[0].source;
   // get current database items
   const databaseItems = await dB.getDatabaseKeysForSource(cloud, source);
 
-  const updateList = compareRemoteWithDatabase(resultDict, databaseItems);
+  const updateList = compareRemoteWithDatabase(resultArray, databaseItems);
 
   if (updateList.length === 0) {
     // no items to update
     return Promise.resolve();
   }
 
-  const envVarDict = {};
+  let envVarArray: EnvVarArray = [];
   let nextToken;
   do {
     log.http(`requesting ${service.cloud}:${service.source} resources`);
-    const envVarResult: EnvVarReturnValue = await service.getEnvVars(
+    const envVarResult: GetEnvVarReturnValue = await service.getEnvVars(
       promiseQueue,
       updateList,
       nextToken
     );
     nextToken = envVarResult.nextToken;
-    Object.assign(envVarDict, envVarResult.envVarDict);
-    Object.keys(envVarResult.envVarDict).forEach((key) => {
-      log.http(`received ${service.cloud}:${service.source} ${key}`);
+    envVarArray = envVarArray.concat(envVarResult.envVarArray);
+    envVarResult.envVarArray.forEach((envVar) => {
+      log.http(`received ${service.cloud}:${service.source} ${envVar.key}`);
     });
   } while (nextToken);
 
-  await dB.saveToDatabase(envVarDict);
+  await dB.saveToDatabase(envVarArray);
+};
+
+// This strategy gets all remote items and update's the database
+const putOneStrategy: UpdateRemoteStrategy = async (
+  promiseQueue: PQueue,
+  service: EnvVarService,
+  overWriteValue: string,
+  envVars: EnvVarArray
+): Promise<UpdateRemoteStrategyReturnValue> => {
+  if (!service.putEnvVar) {
+    throw new Error(`putEnvVar is not defined for service ${service}`);
+  }
+
+  const putPromises: Array<Promise<PutEnvVarReturnValue>> = [];
+
+  // eslint-disable-next-line guard-for-in
+  for (const index in envVars) {
+    log.http(
+      `request update ${service.cloud}:${service.source} ${envVars[index].key}`
+    );
+    envVars[index].value = overWriteValue;
+    putPromises.push(service.putEnvVar(promiseQueue, envVars[index]));
+  }
+
+  // resolve all put requests
+  const result = await Promise.allSettled(putPromises);
+  const returnResult: UpdateRemoteStrategyReturnValue = {
+    success: [],
+    failed: [],
+  };
+  result.forEach((promiseResult, index) => {
+    const envVar = envVars[index];
+    if (promiseResult?.status === 'fulfilled') {
+      returnResult.success.push({
+        envVar: envVar,
+        raw: promiseResult?.value.raw,
+      });
+    } else {
+      returnResult.failed.push({
+        envVar: envVar,
+        error: promiseResult?.reason,
+      });
+    }
+  });
+
+  return returnResult;
 };
 
 export class ServiceCaller {
-  private callingStrategies: UpdateDatabaseStrategy[];
+  private getStrategies: UpdateDatabaseStrategy[];
+
+  private putStrategies: UpdateRemoteStrategy[];
+
+  public get writable() {
+    return (
+      this.service.writeCapability !== WriteCapabilityOfService.NOT_AVAILABLE
+    );
+  }
+
+  public get cloud() {
+    return this.service.cloud;
+  }
+
+  public get source() {
+    return this.service.source;
+  }
 
   constructor(
     private promiseQueue: PQueue,
     private dB: LocalDb,
-    private service: EnvVarSource
+    private service: EnvVarService
   ) {
-    this.callingStrategies = new Array<UpdateDatabaseStrategy>(2);
-    this.callingStrategies[
-      CapabilityOfEnvVarSource.GET_ALL_ONLY
+    this.getStrategies = new Array<UpdateDatabaseStrategy>(2);
+    this.putStrategies = new Array<UpdateRemoteStrategy>(1);
+    this.getStrategies[
+      ReadCapabilityOfService.GET_ALL_ONLY
     ] = getAllAndFillStrategy;
-    this.callingStrategies[
-      CapabilityOfEnvVarSource.CHECK_MODIFIED_AND_SPECIFIC
+    this.getStrategies[
+      ReadCapabilityOfService.CHECK_MODIFIED_AND_SPECIFIC
     ] = checkModifiedAndUpdateStrategy;
+    this.putStrategies[WriteCapabilityOfService.WRITE_ONE] = putOneStrategy;
   }
 
   public async fetchAndUpdateDb() {
-    await this.callingStrategies[this.service.capabilityOfSource](
+    await this.getStrategies[this.service.readCapability](
       this.promiseQueue,
       this.dB,
       this.service
     );
+  }
+
+  public async updateRemote(
+    overWriteValue: string,
+    envVarArray: EnvVarArray
+  ): Promise<UpdateRemoteStrategyReturnValue> {
+    if (
+      this.service.writeCapability === WriteCapabilityOfService.NOT_AVAILABLE
+    ) {
+      return { success: [], failed: [] };
+    }
+
+    const envVarToUpdate = envVarArray.filter((envVar) => {
+      const update =
+        envVar.cloud === this.service.cloud &&
+        envVar.source === this.service.source;
+      return update;
+    });
+
+    const result = await this.putStrategies[this.service.writeCapability](
+      this.promiseQueue,
+      this.service,
+      overWriteValue,
+      envVarToUpdate
+    );
+    return result;
   }
 }

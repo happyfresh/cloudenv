@@ -7,10 +7,11 @@ import { OpsConfig } from 'ops-config';
 import cli from 'cli-ux';
 import { AWSParameterStore, AWSRoute53 } from '../aws-services';
 import inquirer from 'inquirer';
+import { schema } from '../schema';
 
 export default class Key extends Command {
   static description =
-    'find the environment variable value(s) given its key(s)';
+    'Find the environment variable value(s) given its key(s)';
 
   static strict = false;
 
@@ -18,11 +19,19 @@ export default class Key extends Command {
     ...Command.flags,
     version: flags.version({ char: 'v' }),
     help: flags.help({ char: 'h' }),
-
     remote: flags.boolean({
       char: 'r',
-      description: 'check remote state and download new values',
+      description: 'Check remote state and download new values',
       allowNo: true,
+    }),
+    glob: flags.boolean({
+      char: 'g',
+      description: 'Use glob and regex patterns instead of simple matching',
+      allowNo: true,
+    }),
+    writeValue: flags.string({
+      char: 'w',
+      description: 'Overwrite with new value',
     }),
   };
 
@@ -30,14 +39,14 @@ export default class Key extends Command {
     {
       name: 'key',
       required: true,
-      description: 'the environment variable key (glob pattern) to search for',
+      description: 'The environment variable key (glob pattern) to search for',
       hidden: false,
     },
     {
       name: 'additionalKeys',
       required: false,
       description:
-        'additional environment variable key (glob patterns) to search for',
+        'Additional environment variable key (glob patterns) to search for',
       hidden: false,
     },
   ];
@@ -49,6 +58,19 @@ export default class Key extends Command {
       flags,
     } = this.parse(Key);
 
+    OpsConfig.clearArgs().clearEnvs();
+    OpsConfig.init(schema, flags as any);
+
+    if (flags?.dotenvFile) {
+      OpsConfig.usePriorityPreset('cli').loadFromPathPriority(
+        `cloudenv/${flags?.configFile}`,
+        `cloudenv/${flags?.dotenvFile}`
+      );
+    } else {
+      const configFile = `cloudenv/${flags?.configFile}`;
+      OpsConfig.usePriorityPreset('cli').loadFromPathPriority(configFile);
+    }
+
     let allKeys: Array<string>;
     if (additionalKeys) {
       allKeys = [key].concat(additionalKeys);
@@ -56,36 +78,46 @@ export default class Key extends Command {
       allKeys = [key];
     }
 
-    const cm = new CredentialManager();
-    // await cm.getDefaultCredentials();
-    const awsProfile = OpsConfig.get('aws.profile');
-    const awsAccessKeyId = OpsConfig.get('aws.accessKeyId');
-    const awsSecretAccessKey = OpsConfig.get('aws.secretAccessKey');
-    let awsRegion = OpsConfig.get('aws.region');
+    if (OpsConfig.get('remote')) {
+      const cm = new CredentialManager();
+      // await cm.getDefaultCredentials();
+      const awsProfile = OpsConfig.get('aws.profile');
+      const awsAccessKeyId = OpsConfig.get('aws.accessKeyId');
+      const awsSecretAccessKey = OpsConfig.get('aws.secretAccessKey');
+      let awsRegion = OpsConfig.get('aws.region');
 
-    if (!awsRegion) {
-      const questions = [
-        {
-          type: 'input',
-          name: 'region',
-          message:
-            'aws region not detected in configuration / environment variables\nplease enter the aws region',
-          default: false,
-        },
-      ];
+      if (!awsRegion) {
+        const questions = [
+          {
+            type: 'input',
+            name: 'region',
+            message:
+              'aws region not detected in configuration / environment variables\nplease enter the aws region',
+            default: false,
+          },
+        ];
 
-      const { region } = await inquirer.prompt(questions);
-      awsRegion = region;
-    }
+        const { region } = await inquirer.prompt(questions);
+        awsRegion = region;
+      }
 
-    if (awsProfile) {
-      await cm.loginWithCredentialFile(awsProfile, awsRegion);
-    } else {
-      await cm.login(awsAccessKeyId, awsSecretAccessKey, awsRegion);
+      if (awsProfile) {
+        await cm.loginWithCredentialFile(awsProfile, awsRegion);
+      } else {
+        await cm.login(awsAccessKeyId, awsSecretAccessKey, awsRegion);
+      }
     }
     const finderService = new FinderService(this.getDb());
     finderService.addEnvVarSource(new AWSParameterStore());
     finderService.addEnvVarSource(new AWSRoute53());
-    await finderService.runKeySearch(allKeys, OpsConfig.get('remote'));
+    const envVarArray = await finderService.runKeySearch(
+      allKeys,
+      OpsConfig.get('remote')
+    );
+
+    if (flags?.writeValue) {
+      log.noFormatting('\n');
+      await finderService.runOverWrite(flags?.writeValue, envVarArray);
+    }
   }
 }

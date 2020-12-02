@@ -14,6 +14,21 @@ export const schema = {
     env: 'CLOUDENV_REMOTE',
     arg: 'remote',
   },
+  glob: {
+    doc: 'Use glob and regex patterns instead of simple matching',
+    format: Boolean,
+    default: false,
+    env: 'CLOUDENV_GLOB',
+    arg: 'glob',
+  },
+  noInteractive: {
+    doc:
+      'Disable interactive input queries (useful if you want to run in scripts)',
+    format: Boolean,
+    default: false,
+    env: 'CLOUDENV_NOINTERACTIVE',
+    arg: 'noInteractive',
+  },
   freshRemoteReminder: {
     doc: 'The password for data stored in db cache',
     format: 'duration',
@@ -56,27 +71,27 @@ export const schema = {
     },
     csv: {
       doc: 'output is csv format',
-      format: String,
-      default: undefined,
+      format: Boolean,
+      default: false,
       arg: 'csv',
     },
     extended: {
       doc: 'show extra columns',
-      format: String,
-      default: undefined,
+      format: Boolean,
+      default: true,
       arg: 'extended',
     },
-    noTruncate: {
+    truncate: {
       doc: 'only show provided columns (comma-separated)',
-      format: String,
-      default: undefined,
-      arg: 'no-truncate',
+      format: Boolean,
+      default: true,
+      arg: 'noTruncate',
     },
-    noHeader: {
+    header: {
       doc: 'only show provided columns (comma-separated)',
-      format: String,
-      default: undefined,
-      arg: 'no-header',
+      format: Boolean,
+      default: true,
+      arg: 'noHeader',
     },
   },
   aws: {

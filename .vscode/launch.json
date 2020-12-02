@@ -11,13 +11,12 @@
       "program": "${workspaceFolder}/bin/run",
       "args": [
         "value",
-        "--extended",
         "--dotenvFile",
-        ".stagingenv",
+        ".productionenv",
         "--configFile",
-        "stagingConfig.yaml",
-        "search*",
-        "*search*"
+        "productionConfig.yaml",
+        "--no-truncate",
+        "fsrv",
       ],
       "sourceMaps": true,
       "cwd": "${workspaceRoot}",
@@ -33,14 +32,13 @@
       "name": "key command",
       "program": "${workspaceFolder}/bin/run",
       "args": ["key",
-        "--extended",
         "--dotenvFile",
-        ".stagingenv",
+        ".productionenv",
         "--configFile",
-        "stagingConfig.yaml",
+        "productionConfig.yaml",
+        "--no-truncate",
         "--no-remote",
-      "**/*SSRV*",
-"**/CatalogService-Search*"
+        "fsrv",
     ],
       "sourceMaps": true,
       "cwd": "${workspaceRoot}",
@@ -49,27 +47,18 @@
       "env": {
         "NODE_ENV": "development"
       }
-    },
-    {
+    },{
       "type": "node",
       "request": "launch",
-      "name": "ls command setPassword",
+      "name": "db command",
       "program": "${workspaceFolder}/bin/run",
-      "args": ["ls", "--setPassword", "password"],
-      "sourceMaps": true,
-      "cwd": "${workspaceRoot}",
-      "protocol": "inspector",
-      "console": "integratedTerminal",
-      "env": {
-        "NODE_ENV": "development"
-      }
-    },
-    {
-      "type": "node",
-      "request": "launch",
-      "name": "ls command password",
-      "program": "${workspaceFolder}/bin/run",
-      "args": ["ls", "--password", "password"],
+      "args": [
+        "db",
+        "--dotenvFile",
+        ".labenv",
+        "--configFile",
+        "labConfig.yaml",
+      ],
       "sourceMaps": true,
       "cwd": "${workspaceRoot}",
       "protocol": "inspector",

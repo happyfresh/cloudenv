@@ -10,7 +10,7 @@ import inquirer from 'inquirer';
 import { schema } from '../schema';
 
 export default class Value extends Command {
-  static description = 'find the environment variable key(s) given its value';
+  static description = 'Find the environment variable key(s) given its value';
 
   static strict = false;
 
@@ -18,28 +18,35 @@ export default class Value extends Command {
     ...Command.flags,
     version: flags.version({ char: 'v' }),
     help: flags.help({ char: 'h' }),
-
     remote: flags.boolean({
       char: 'r',
-      description: 'check remote state and download new values',
+      description: 'Check remote state and download new values',
       allowNo: true,
+    }),
+    glob: flags.boolean({
+      char: 'g',
+      description: 'Use glob and regex patterns instead of simple matching',
+      allowNo: true,
+    }),
+    writeValue: flags.string({
+      char: 'w',
+      description: 'Overwrite with new value',
     }),
   };
 
   static args = [
-    // ...Command.args,
     {
       name: 'value',
       required: true,
       description:
-        'the environment variable value (glob pattern) to search for',
+        'The environment variable value (glob pattern) to search for',
       hidden: false,
     },
     {
       name: 'additionalValues',
       required: false,
       description:
-        'additional environment variable values (glob patterns) to search for',
+        'Additional environment variable values (glob patterns) to search for',
       hidden: false,
     },
   ];
@@ -56,11 +63,11 @@ export default class Value extends Command {
 
     if (flags?.dotenvFile) {
       OpsConfig.usePriorityPreset('cli').loadFromPathPriority(
-        `ops-config/${flags?.configFile}`,
-        `ops-config/${flags?.dotenvFile}`
+        `cloudenv/${flags?.configFile}`,
+        `cloudenv/${flags?.dotenvFile}`
       );
     } else {
-      const configFile = `ops-config/${flags?.configFile}`;
+      const configFile = `cloudenv/${flags?.configFile}`;
       OpsConfig.usePriorityPreset('cli').loadFromPathPriority(configFile);
     }
 
@@ -71,36 +78,46 @@ export default class Value extends Command {
       allValues = [value];
     }
 
-    const cm = new CredentialManager();
-    // await cm.getDefaultCredentials();
-    const awsProfile = OpsConfig.get('aws.profile');
-    const awsAccessKeyId = OpsConfig.get('aws.accessKeyId');
-    const awsSecretAccessKey = OpsConfig.get('aws.secretAccessKey');
-    let awsRegion = OpsConfig.get('aws.region');
+    if (OpsConfig.get('remote')) {
+      const cm = new CredentialManager();
+      // await cm.getDefaultCredentials();
+      const awsProfile = OpsConfig.get('aws.profile');
+      const awsAccessKeyId = OpsConfig.get('aws.accessKeyId');
+      const awsSecretAccessKey = OpsConfig.get('aws.secretAccessKey');
+      let awsRegion = OpsConfig.get('aws.region');
 
-    if (!awsRegion) {
-      const questions = [
-        {
-          type: 'input',
-          name: 'region',
-          message:
-            'aws region not detected in configuration / environment variables\nplease enter the aws region',
-          default: false,
-        },
-      ];
+      if (!awsRegion) {
+        const questions = [
+          {
+            type: 'input',
+            name: 'region',
+            message:
+              'aws region not detected in configuration / environment variables\nplease enter the aws region',
+            default: false,
+          },
+        ];
 
-      const { region } = await inquirer.prompt(questions);
-      awsRegion = region;
-    }
+        const { region } = await inquirer.prompt(questions);
+        awsRegion = region;
+      }
 
-    if (awsProfile) {
-      await cm.loginWithCredentialFile(awsProfile, awsRegion);
-    } else {
-      await cm.login(awsAccessKeyId, awsSecretAccessKey, awsRegion);
+      if (awsProfile) {
+        await cm.loginWithCredentialFile(awsProfile, awsRegion);
+      } else {
+        await cm.login(awsAccessKeyId, awsSecretAccessKey, awsRegion);
+      }
     }
     const finderService = new FinderService(this.getDb());
     finderService.addEnvVarSource(new AWSParameterStore());
     finderService.addEnvVarSource(new AWSRoute53());
-    await finderService.runSearch(allValues, OpsConfig.get('remote'));
+    const envVarArray = await finderService.runSearch(
+      allValues,
+      OpsConfig.get('remote')
+    );
+
+    if (flags?.writeValue) {
+      log.noFormatting('\n');
+      await finderService.runOverWrite(flags?.writeValue, envVarArray);
+    }
   }
 }

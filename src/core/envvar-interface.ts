@@ -1,44 +1,58 @@
 import PQueue from 'p-queue';
 export { PQueue };
 
-export interface EnvVarReturnValue {
-  envVarDict: EnvVarDict;
+export interface GetEnvVarReturnValue {
+  envVarArray: EnvVarArray;
   nextToken: any;
+}
+
+export interface PutEnvVarReturnValue {
+  raw: any;
 }
 
 export interface EnvVar {
   key: string;
   value?: string;
   raw?: any;
-  modifiedDate?: string;
+  modifiedDate?: Date;
   cloud: string;
   source: string;
 }
 
-export interface EnvVarDict {
-  [key: string]: EnvVar;
-}
+export type EnvVarArray = Array<EnvVar>;
 
-export enum CapabilityOfEnvVarSource {
-  GET_ALL_ONLY = 0,
+export enum ReadCapabilityOfService {
+  NOT_AVAILABLE = 0,
+  GET_ALL_ONLY = 1,
   CHECK_MODIFIED_AND_SPECIFIC,
 }
 
-export interface EnvVarSource {
+export enum WriteCapabilityOfService {
+  NOT_AVAILABLE = 0,
+  WRITE_MANY = 1,
+  WRITE_ONE,
+}
+
+export interface EnvVarService {
   cloud: string;
   source: string;
-  capabilityOfSource: CapabilityOfEnvVarSource;
+  readCapability: ReadCapabilityOfService;
+  writeCapability: WriteCapabilityOfService;
   getAllEnvVars?: (
     promiseQueue: PQueue,
     nextToken?: any
-  ) => Promise<EnvVarReturnValue>;
+  ) => Promise<GetEnvVarReturnValue>;
   checkModifiedEnvVars?: (
     promiseQueue: PQueue,
     nextToken?: any
-  ) => Promise<EnvVarReturnValue>;
+  ) => Promise<GetEnvVarReturnValue>;
   getEnvVars?: (
     promiseQueue: PQueue,
     list: string[],
     nextToken?: any
-  ) => Promise<EnvVarReturnValue>;
+  ) => Promise<GetEnvVarReturnValue>;
+  putEnvVar?: (
+    promiseQueue: PQueue,
+    envVar: EnvVar
+  ) => Promise<PutEnvVarReturnValue>;
 }
