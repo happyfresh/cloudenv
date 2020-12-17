@@ -1,7 +1,6 @@
-aws-env-searcher
-================
+# Cloudenv
 
-A command line tool to search through a whole AWS account for environment variables keys and values.
+A command line tool to search through a whole AWS account for environment variables keys and values. Currently supports searching through system manager parameter store and route53 hosted zones.
 
 [![oclif](https://img.shields.io/badge/cli-oclif-brightgreen.svg)](https://oclif.io)
 [![Version](https://img.shields.io/npm/v/aws-env-searcher.svg)](https://npmjs.org/package/aws-env-searcher)
@@ -11,11 +10,15 @@ A command line tool to search through a whole AWS account for environment variab
 [![License](https://img.shields.io/npm/l/aws-env-searcher.svg)](https://github.com/personal/aws-env-searcher/blob/master/package.json)
 
 <!-- toc -->
-* [Usage](#usage)
-* [Commands](#commands)
+
+- [Usage](#usage)
+- [Commands](#commands)
 <!-- tocstop -->
+
 # Usage
+
 <!-- usage -->
+
 ```sh-session
 $ npm install -g @happyfresh/cloudenv
 $ cloudenv COMMAND
@@ -27,13 +30,17 @@ USAGE
   $ cloudenv COMMAND
 ...
 ```
+
 <!-- usagestop -->
+
 # Commands
+
 <!-- commands -->
-* [`cloudenv help [COMMAND]`](#cloudenv-help-command)
-* [`cloudenv info`](#cloudenv-info)
-* [`cloudenv key KEY [ADDITIONALKEYS]`](#cloudenv-key-key-additionalkeys)
-* [`cloudenv value VALUE [ADDITIONALVALUES]`](#cloudenv-value-value-additionalvalues)
+
+- [`cloudenv help [COMMAND]`](#cloudenv-help-command)
+- [`cloudenv info`](#cloudenv-info)
+- [`cloudenv key KEY [ADDITIONALKEYS]`](#cloudenv-key-key-additionalkeys)
+- [`cloudenv value VALUE [ADDITIONALVALUES]`](#cloudenv-value-value-additionalvalues)
 
 ## `cloudenv help [COMMAND]`
 
@@ -208,4 +215,76 @@ OPTIONS
 ```
 
 _See code: [src/commands/value.ts](https://github.com/happyfresh/cloudenv/blob/v0.1.0/src/commands/value.ts)_
+
 <!-- commandsstop -->
+
+## Password
+
+Because cloudenv will be downloading potentialy sensitive data, by default all data is encrypted with a password you provide. When you first use cloudenv (or if you specify a different cache name), cloud env will prompt you to create a new password.
+
+You need to provide this password each time you use cloudenv, you can do this through:
+
+1. The command line `cloudenv value --password mypassword <searchstring>`(not recommended as it is in clear text and will be in your shell history).
+2. The environment variable `CLOUDENV_PASSWORD`
+3. The configuration file with the property `password`
+
+## Configuration
+
+To see where your configuration file should be located, run the `cloudenv info` command. Create a file named config.yaml at the location described by the command (by default cloudenv will search for config.yaml). You could also create different configuration file names (i.e. staging.yaml or production.yaml) with custom configurations for each environment. You would then specify the config file to use by invoking `cloudenv value --configFile staging.yaml <searchstring>` for example.
+
+To see the configuration schema used, invoke `cloudenv info --schema` in the command line.
+
+Below is a minimal example for config files :
+
+```yaml
+#staging.yaml
+password: mypassword
+logLevel: http
+cacheName: stagingDb
+freshRemoteReminder: 5 minutes
+aws:
+  profile: staging
+  region: ap-southeast-1
+  logging: false
+
+#production.yaml
+password: mypassword
+logLevel: http
+cacheName: productionDb
+freshRemoteReminder: 5 minutes
+aws:
+  profile: production
+  region: ap-southeast-1
+  logging: false
+```
+
+As you can see in the example above, AWS specific configurations are grouped under the "aws" property. Cloudenv requires the AWS access key id and secret in order to function. There are several alternative ways to provide this to cloudenv as described in the sections below.
+
+### AWS Profile
+
+Cloudenv will first search for the existence of an environment variable with the name `AWS_PROFILE` containing the name of the AWS profile to be used.
+
+You could also provide the name of the profile through the command line (`--awsProfile`) or in the configuration file (as can be seen from the example above).
+
+Please see the following documentation from AWS regarding how to set your AWS profile in your local computer : https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html
+
+### AWS Access Key and Secret
+
+You can provide the AWS access key and secret using the same environment variables that would be used by the AWS CLI, by setting the following environment variables `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`. You can also configure it in the configuration file :
+
+```yaml
+aws:
+  accessKeyId: XXXXXX
+  secreteAccessKey: XXXXX
+```
+
+There is (purposefully) no equivalent commandline argument available.
+
+### AWS Region
+
+You must provide the AWS region to be used, this can be done through environment variable `AWS_REGION`, commandline argument `--awsRegion` and through the configuration file :
+
+```yaml
+aws:
+  region: ap-southeast-1
+```
