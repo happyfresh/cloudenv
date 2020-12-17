@@ -85,13 +85,13 @@ export const schema = {
       doc: 'only show provided columns (comma-separated)',
       format: Boolean,
       default: true,
-      arg: 'noTruncate',
+      arg: 'truncate',
     },
     header: {
       doc: 'only show provided columns (comma-separated)',
       format: Boolean,
       default: true,
-      arg: 'noHeader',
+      arg: 'header',
     },
   },
   aws: {
@@ -118,6 +118,7 @@ export const schema = {
     secretAccessKey: {
       doc: 'The aws secret access key credentials to use',
       format: String,
+      sensitive: true,
       default: '',
       env: 'AWS_SECRET_ACCESS_KEY',
     },

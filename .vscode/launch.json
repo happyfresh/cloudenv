@@ -50,14 +50,10 @@
     },{
       "type": "node",
       "request": "launch",
-      "name": "db command",
+      "name": "info command",
       "program": "${workspaceFolder}/bin/run",
       "args": [
-        "db",
-        "--dotenvFile",
-        ".labenv",
-        "--configFile",
-        "labConfig.yaml",
+        "info"
       ],
       "sourceMaps": true,
       "cwd": "${workspaceRoot}",

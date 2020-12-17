@@ -31,8 +31,8 @@ function printOutput(envVarArray: EnvVarArray) {
     filter: OpsConfig.get('output.filter'),
     csv: OpsConfig.get('output.csv'),
     extended: OpsConfig.get('output.extended'),
-    'no-truncate': OpsConfig.get('output.truncate'),
-    'no-header': OpsConfig.get('output.header'),
+    'no-truncate': !OpsConfig.get('output.truncate'),
+    'no-header': !OpsConfig.get('output.header'),
   };
 
   cli.table(envVarArray, columns, options);
@@ -74,8 +74,8 @@ function printOverWriteResult(
     filter: OpsConfig.get('output.filter'),
     csv: OpsConfig.get('output.csv'),
     extended: OpsConfig.get('output.extended'),
-    'no-truncate': OpsConfig.get('output.truncate'),
-    'no-header': OpsConfig.get('output.header'),
+    'no-truncate': !OpsConfig.get('output.truncate'),
+    'no-header': !OpsConfig.get('output.header'),
   };
 
   cli.table(envVarRemoteValue, columns, options);

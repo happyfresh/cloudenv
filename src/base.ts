@@ -101,6 +101,8 @@ export default abstract class BaseCommand extends Command {
     return this.Db;
   }
 
+  protected cacheLocation?: string;
+
   async init() {
     // do some initialization
     const { flags } = this.parse(BaseCommand);
@@ -154,6 +156,8 @@ export default abstract class BaseCommand extends Command {
       cacheFullPath = dataPath;
       newDatabaseFlag = true;
     }
+
+    this.cacheLocation = cacheFullPath;
 
     let newPassword: string | undefined;
     // if new database and no setPassword is given

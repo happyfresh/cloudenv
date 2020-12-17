@@ -1,12 +1,13 @@
 {
-  "name": "cloudenv",
+  "name": "@happyfresh/cloudenv",
   "description": "A command line tool to search through a whole AWS account for environment variables keys and values.",
   "version": "0.0.0",
   "author": "M. Hakim Adiprasetya",
   "bin": {
-    "cloudenv": "./bin/run"
+    "cloudenv": "./bin/run",
+    "@happyfresh/cloudenv": "./bin/run"
   },
-  "bugs": "https://github.com/personal/cloudenv/issues",
+  "bugs": "https://github.com/happyfresh/cloudenv/issues",
   "dependencies": {
     "@adorsys/encrypt-down": "^2.1.2",
     "@oclif/command": "^1.8.0",
@@ -19,15 +20,17 @@
     "app-root-path": "^3.0.0",
     "aws-sdk": "^2.787.0",
     "bson-ext": "^2.0.5",
+    "chalk": "^4.1.0",
     "cli-ux": "^5.5.0",
     "env-paths": "^2.2.0",
+    "indent-string": "^4.0.0",
     "ink": "^3.0.8",
     "inquirer": "^7.3.3",
     "level": "^6.0.1",
     "limiter": "^1.1.5",
     "minimatch": "^3.0.4",
     "moment": "^2.27.0",
-    "ops-config": "^0.7.0",
+    "ops-config": "^0.9.0",
     "p-queue": "^6.6.2",
     "path-priority": "^0.5.1",
     "react": "^17.0.1",
@@ -58,7 +61,7 @@
     "/npm-shrinkwrap.json",
     "/oclif.manifest.json"
   ],
-  "homepage": "https://github.com/personal/cloudenv",
+  "homepage": "https://github.com/happyfresh/cloudenv",
   "keywords": [
     "oclif"
   ],
@@ -66,12 +69,13 @@
   "main": "lib/index.js",
   "oclif": {
     "commands": "./lib/commands",
+    "helpClass": "./lib/help",
     "bin": "cloudenv",
     "plugins": [
       "@oclif/plugin-help"
     ]
   },
-  "repository": "personal/cloudenv",
+  "repository": "happyfresh/cloudenv",
   "scripts": {
     "pack": "oclif-dev pack",
     "pack:macos": "oclif-dev pack:macos",
