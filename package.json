@@ -77,6 +77,7 @@
   },
   "repository": "happyfresh/cloudenv",
   "scripts": {
+    "lint": "eslint 'src/**/*?(.spec).{js,ts,tsx}' --quiet --fix",
     "pack": "oclif-dev pack",
     "pack:macos": "oclif-dev pack:macos",
     "pack:deb": "oclif-dev pack:deb",
@@ -84,7 +85,9 @@
     "posttest": "eslint . --ext .ts --config .eslintrc",
     "prepack": "rm -rf lib && tsc -b && oclif-dev manifest && oclif-dev readme",
     "test": "echo NO TESTS",
-    "version": "oclif-dev readme && git add README.md"
+    "preversion": "npm run lint",
+    "version": "oclif-dev readme && git add README.md",
+    "postversion": "git push && git push --tags"
   },
   "types": "lib/index.d.ts"
 }
