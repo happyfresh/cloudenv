@@ -10,37 +10,34 @@ A command line tool to search through a whole AWS account for environment variab
 [![License](https://img.shields.io/npm/l/aws-env-searcher.svg)](https://github.com/personal/aws-env-searcher/blob/master/package.json)
 
 <!-- toc -->
-
-- [Usage](#usage)
-- [Commands](#commands)
+* [Cloudenv](#cloudenv)
+* [Usage](#usage)
+* [Commands](#commands)
 <!-- tocstop -->
 
 # Usage
 
 <!-- usage -->
-
 ```sh-session
 $ npm install -g @happyfresh/cloudenv
 $ cloudenv COMMAND
 running command...
 $ cloudenv (-v|--version|version)
-@happyfresh/cloudenv/0.1.0 linux-x64 node-v14.10.1
+@happyfresh/cloudenv/0.1.1 linux-x64 node-v14.10.1
 $ cloudenv --help [COMMAND]
 USAGE
   $ cloudenv COMMAND
 ...
 ```
-
 <!-- usagestop -->
 
 # Commands
 
 <!-- commands -->
-
-- [`cloudenv help [COMMAND]`](#cloudenv-help-command)
-- [`cloudenv info`](#cloudenv-info)
-- [`cloudenv key KEY [ADDITIONALKEYS]`](#cloudenv-key-key-additionalkeys)
-- [`cloudenv value VALUE [ADDITIONALVALUES]`](#cloudenv-value-value-additionalvalues)
+* [`cloudenv help [COMMAND]`](#cloudenv-help-command)
+* [`cloudenv info`](#cloudenv-info)
+* [`cloudenv key KEY [ADDITIONALKEYS]`](#cloudenv-key-key-additionalkeys)
+* [`cloudenv value VALUE [ADDITIONALVALUES]`](#cloudenv-value-value-additionalvalues)
 
 ## `cloudenv help [COMMAND]`
 
@@ -106,7 +103,7 @@ OPTIONS
   --[no-]truncate                                          Truncate output to fit screen
 ```
 
-_See code: [src/commands/info.ts](https://github.com/happyfresh/cloudenv/blob/v0.1.0/src/commands/info.ts)_
+_See code: [src/commands/info.ts](https://github.com/happyfresh/cloudenv/blob/v0.1.1/src/commands/info.ts)_
 
 ## `cloudenv key KEY [ADDITIONALKEYS]`
 
@@ -160,7 +157,7 @@ OPTIONS
   --[no-]truncate                                          Truncate output to fit screen
 ```
 
-_See code: [src/commands/key.ts](https://github.com/happyfresh/cloudenv/blob/v0.1.0/src/commands/key.ts)_
+_See code: [src/commands/key.ts](https://github.com/happyfresh/cloudenv/blob/v0.1.1/src/commands/key.ts)_
 
 ## `cloudenv value VALUE [ADDITIONALVALUES]`
 
@@ -214,8 +211,7 @@ OPTIONS
   --[no-]truncate                                          Truncate output to fit screen
 ```
 
-_See code: [src/commands/value.ts](https://github.com/happyfresh/cloudenv/blob/v0.1.0/src/commands/value.ts)_
-
+_See code: [src/commands/value.ts](https://github.com/happyfresh/cloudenv/blob/v0.1.1/src/commands/value.ts)_
 <!-- commandsstop -->
 
 ## Password
