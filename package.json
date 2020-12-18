@@ -1,7 +1,7 @@
 {
   "name": "@happyfresh/cloudenv",
   "description": "A command line tool to search through a whole AWS account for environment variables keys and values.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "M. Hakim Adiprasetya",
   "bin": {
     "cloudenv": "./bin/run",
