@@ -103,10 +103,13 @@ export default abstract class BaseCommand extends Command {
 
   protected cacheLocation?: string;
 
+  protected password?: string;
+
   async init() {
     // do some initialization
     const { flags } = this.parse(BaseCommand);
     OpsConfig.init(schema, flags as any);
+    OpsConfig.setDefaultFileContents('');
 
     if (flags?.dotenvFile) {
       OpsConfig.usePriorityPreset('cli').loadFromPathPriority(
@@ -246,17 +249,22 @@ export default abstract class BaseCommand extends Command {
       await this.Db.openDatabase(cacheFullPath);
     }
 
-    const password =
+    this.password =
       flags?.setPassword || newPassword || OpsConfig.get('password');
 
     // test if password works
     if (!this.Db) {
       this.error('failed to initialize database', { exit: 1 });
     }
-    const passwordOk = await this.Db.unlockDatabase(password as string);
+
+    if (this.constructor.name === 'Info') {
+      return;
+    }
+
+    const passwordOk = await this.Db.unlockDatabase(this.password as string);
 
     if (!passwordOk) {
-      this.error('wrong password', {
+      this.error('Wrong password for cache ' + cacheFullPath, {
         exit: 1,
         suggestions: [
           'please use another password with --password or set a new password with --setPassword (this will create a new cache)',

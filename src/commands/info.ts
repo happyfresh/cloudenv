@@ -1,12 +1,9 @@
 import Command from '../base';
 import { flags } from '@oclif/command';
-import { CredentialManager } from '../core';
 import { log } from '../util';
-import { FinderService } from '../core';
 import { OpsConfig } from 'ops-config';
 import cli from 'cli-ux';
-import { AWSParameterStore, AWSRoute53 } from '../aws-services';
-import inquirer from 'inquirer';
+import chalk from 'chalk';
 import { schema } from '../schema';
 import path from 'path';
 import fs from 'fs';
@@ -34,19 +31,17 @@ export default class Info extends Command {
       return;
     }
 
-    const metaData = await this.getDb().updateMetaData();
-    const printSources = Object.keys(metaData.source).map((element) => {
-      return {
-        source: element,
-        count: metaData.source[element].count,
-        lastUpdated: metaData.source[element].lastUpdated,
-      };
-    });
-    const columns = {
-      source: {},
-      count: {},
-      lastUpdated: {},
-    };
+    const passwordOk = await this.getDb().unlockDatabase(
+      this.password as string
+    );
+
+    let metaData: any;
+
+    if (passwordOk) {
+      metaData = await this.getDb().updateMetaData();
+      log.noFormatting('\n');
+    }
+
     const configFile = OpsConfig.printConfigPathPriority().find(
       (path) => path.absolute && path.conditionPass
     )?.description as string;
@@ -61,47 +56,94 @@ export default class Info extends Command {
     const cacheDirContent = fs.readdirSync(
       path.dirname(this.cacheLocation as string)
     );
-    log.noFormatting('\n');
-    log.noFormatting(
-      `Cache location : ${path.dirname(this.cacheLocation as string)}`
+    cli.table(
+      [
+        {
+          item: chalk.blue('Cache location'),
+          separator: ':',
+          description: path.dirname(this.cacheLocation as string),
+        },
+        {
+          item: chalk.blue('Available caches'),
+          separator: ':',
+          description: cacheDirContent.toString().replace(/,/g, ', '),
+        },
+        {
+          item: chalk.blue('Currently used cache'),
+          separator: ':',
+          description: path.basename(this.cacheLocation as string),
+        },
+      ],
+      { item: {}, separator: {}, description: {} },
+      { 'no-header': true, 'no-truncate': true }
     );
-    log.noFormatting(
-      `Available caches : ${cacheDirContent.toString().replace(/,/g, ', ')}`
+    if (passwordOk) {
+      const printSources = Object.keys(metaData.source).map((element) => {
+        return {
+          source: element,
+          count: metaData.source[element].count,
+          lastUpdated: metaData.source[element].lastUpdated,
+        };
+      });
+      const columns = {
+        source: {},
+        count: {},
+        lastUpdated: {},
+      };
+      log.noFormatting('');
+      log.noFormatting(`Cache last updated ${metaData.lastUpdated}`);
+      if (printSources.length !== 0) {
+        log.noFormatting('');
+        cli.table(printSources, columns);
+      }
+    }
+    log.noFormatting('');
+    cli.table(
+      [
+        {
+          item: chalk.blue('Config file search location'),
+          separator: ':',
+          description: path.dirname(configFile),
+        },
+        {
+          item: chalk.blue('Available config files'),
+          separator: ':',
+          description: configDirContent.toString().replace(/,/g, ', '),
+        },
+        {
+          item: chalk.blue('Currently used config file'),
+          separator: ':',
+          description: path.basename(configFile),
+        },
+      ],
+      { item: {}, separator: {}, description: {} },
+      { 'no-header': true, 'no-truncate': true }
     );
-    log.noFormatting(
-      `Currently used cache : ${path.basename(this.cacheLocation as string)}`
-    );
-    log.noFormatting(`Total cache data count : ${metaData.count}`);
-    log.noFormatting(`Cache last updated ${metaData.lastUpdated}`);
-    log.noFormatting('\n');
-    cli.table(printSources, columns);
-    log.noFormatting('\n');
-    log.noFormatting(
-      `Config file search location : ${path.dirname(configFile)}`
-    );
-    log.noFormatting(
-      `Available config files : ${configDirContent
-        .toString()
-        .replace(/,/g, ', ')}`
-    );
-    log.noFormatting(
-      `Currently used config file : ${path.basename(configFile)}`
-    );
+
     log.noFormatting('Current configuration : \n');
     log.noFormatting(OpsConfig.printValues());
-    log.noFormatting('\n');
-    log.noFormatting(
-      `Dotenv file search location : ${path.dirname(configFile)}`
+    log.noFormatting('');
+
+    cli.table(
+      [
+        {
+          item: chalk.blue('Dotenv file search location'),
+          separator: ':',
+          description: path.dirname(configFile),
+        },
+        {
+          item: chalk.blue('Available dotenv files'),
+          separator: ':',
+          description: dotenvDirContent.toString().replace(/,/g, ', '),
+        },
+        {
+          item: chalk.blue('Currently used dotenv file'),
+          separator: ':',
+          description: dotenvFile ? path.basename(dotenvFile) : 'None',
+        },
+      ],
+      { item: {}, separator: {}, description: {} },
+      { 'no-header': true, 'no-truncate': true }
     );
-    log.noFormatting(
-      `Available dotenv files : ${dotenvDirContent
-        .toString()
-        .replace(/,/g, ', ')}`
-    );
-    if (dotenvFile) {
-      log.noFormatting(
-        `Currently used dotenv file : ${path.basename(dotenvFile)}`
-      );
-    }
   }
 }

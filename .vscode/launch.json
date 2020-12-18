@@ -12,9 +12,9 @@
       "args": [
         "value",
         "--dotenvFile",
-        ".productionenv",
+        ".stagingenv",
         "--configFile",
-        "productionConfig.yaml",
+        "stagingConfig.yaml",
         "--no-truncate",
         "fsrv",
       ],
@@ -53,7 +53,11 @@
       "name": "info command",
       "program": "${workspaceFolder}/bin/run",
       "args": [
-        "info"
+        "info",
+        "--dotenvFile",
+        ".stagingenv",
+        "--configFile",
+        "stagingConfig.yaml",
       ],
       "sourceMaps": true,
       "cwd": "${workspaceRoot}",

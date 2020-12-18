@@ -30,7 +30,7 @@
     "limiter": "^1.1.5",
     "minimatch": "^3.0.4",
     "moment": "^2.27.0",
-    "ops-config": "^0.9.0",
+    "ops-config": "^0.10.0",
     "p-queue": "^6.6.2",
     "path-priority": "^0.5.1",
     "react": "^17.0.1",

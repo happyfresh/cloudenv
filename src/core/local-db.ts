@@ -176,7 +176,7 @@ export class LocalDb {
   public async getAllDatabaseKeys(): Promise<EnvVarArray> {
     const parameterArray: EnvVarArray = [];
 
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       this.db
         .createKeyStream()
         .on('data', function (key: any) {
@@ -204,7 +204,7 @@ export class LocalDb {
     const sources: MetaData['source'] = {};
     const bar = customBar('Updating cache metadata');
     bar.start(dBCount, 0);
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       this.db
         .createReadStream()
         .on('data', (data: any) => {
@@ -262,7 +262,7 @@ export class LocalDb {
   ): Promise<EnvVarArray> {
     const parameterArray: EnvVarArray = [];
 
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       this.db
         .createKeyStream()
         .on('data', function (key: any) {
@@ -296,7 +296,7 @@ export class LocalDb {
     const bar = customBar('Searching for Key in Value');
     bar.start(dBCount, 0);
     let count = 0;
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       this.db
         .createReadStream()
         .on('data', (data: any) => {
@@ -350,7 +350,7 @@ export class LocalDb {
     const bar = customBar('Searching for Value in Key');
     bar.start(dBCount, 0);
     let count = 0;
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       this.db
         .createReadStream()
         .on('data', (data: any) => {
@@ -417,7 +417,7 @@ export class LocalDb {
 
     log.verbose('inserting new values into cache');
     try {
-      await new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         this.db.batch(dbOps, function (err: Error) {
           if (err) {
             reject(err);
