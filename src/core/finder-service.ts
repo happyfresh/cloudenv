@@ -14,15 +14,16 @@ import inquirer from 'inquirer';
 
 function printOutput(envVarArray: EnvVarArray) {
   const columns = {
-    cloud: {
-      extended: true,
-    },
+    cloud: {},
     source: {},
     key: {
       header: 'Key', // override column header
       minWidth: 10, // column must display at this width or greater
     },
     value: {},
+    raw: {
+      extended: true,
+    },
   };
 
   const options = {

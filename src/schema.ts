@@ -78,7 +78,7 @@ export const schema = {
     extended: {
       doc: 'show extra columns',
       format: Boolean,
-      default: true,
+      default: false,
       arg: 'extended',
     },
     truncate: {
