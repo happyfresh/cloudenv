@@ -53,6 +53,7 @@ function transformNetworkResultToEnvVar(
   return {
     key: key,
     modifiedDate: networkResult.LastModifiedDate,
+    raw: networkResult,
     source: SourceInfo.source,
     cloud: SourceInfo.cloud,
     value: networkResult.Value,
