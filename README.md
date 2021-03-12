@@ -23,7 +23,7 @@ $ npm install -g @happyfresh/cloudenv
 $ cloudenv COMMAND
 running command...
 $ cloudenv (-v|--version|version)
-@happyfresh/cloudenv/0.2.0 linux-x64 node-v14.10.1
+@happyfresh/cloudenv/0.2.1 linux-x64 node-v14.10.1
 $ cloudenv --help [COMMAND]
 USAGE
   $ cloudenv COMMAND
@@ -103,7 +103,7 @@ OPTIONS
   --[no-]truncate                                          Truncate output to fit screen
 ```
 
-_See code: [src/commands/info.ts](https://github.com/happyfresh/cloudenv/blob/v0.2.0/src/commands/info.ts)_
+_See code: [src/commands/info.ts](https://github.com/happyfresh/cloudenv/blob/v0.2.1/src/commands/info.ts)_
 
 ## `cloudenv key KEY [ADDITIONALKEYS]`
 
@@ -157,7 +157,7 @@ OPTIONS
   --[no-]truncate                                          Truncate output to fit screen
 ```
 
-_See code: [src/commands/key.ts](https://github.com/happyfresh/cloudenv/blob/v0.2.0/src/commands/key.ts)_
+_See code: [src/commands/key.ts](https://github.com/happyfresh/cloudenv/blob/v0.2.1/src/commands/key.ts)_
 
 ## `cloudenv value VALUE [ADDITIONALVALUES]`
 
@@ -211,7 +211,7 @@ OPTIONS
   --[no-]truncate                                          Truncate output to fit screen
 ```
 
-_See code: [src/commands/value.ts](https://github.com/happyfresh/cloudenv/blob/v0.2.0/src/commands/value.ts)_
+_See code: [src/commands/value.ts](https://github.com/happyfresh/cloudenv/blob/v0.2.1/src/commands/value.ts)_
 <!-- commandsstop -->
 
 ## Password
